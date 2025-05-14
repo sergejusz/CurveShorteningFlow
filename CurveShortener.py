@@ -4,7 +4,7 @@ import numpy as np
 from scipy import signal
 from scipy import interpolate
 import geometry as geom
-import ImageSupport
+import image_operations
 import singularity_areas_detection as singular
 
 class CurveShortener():
