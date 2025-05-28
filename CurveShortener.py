@@ -181,9 +181,6 @@ class CurveShortener():
         is_circle = geom.is_circle(curve)
         if is_circle != self.is_circle:
             self.is_circle = is_circle
-            t = list(self.callBackObj)
-            t[4] = is_circle
-            self.callBackObj = tuple(t)
 
         normal_unit_field = geom.get_normal_unit_field(curve)
         next_curve = []        
@@ -195,6 +192,3 @@ class CurveShortener():
             next_curve.append((x, y))
         return next_curve
 
-
-   
-    

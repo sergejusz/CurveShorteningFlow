@@ -44,7 +44,6 @@ class CurveExtractor():
             if self.debugPrint: print("CurveExtractor.loadFromFile failed for '", path, "'")
         return image
 
-
     # find and collect closed curve points on image
     # curve should be closed and without intersections
     def extract(self, image, signalColor):

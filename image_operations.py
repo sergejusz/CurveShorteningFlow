@@ -1,5 +1,6 @@
 import math
 import cv2
+import numpy as np
 import geometry as geom
 import list_operations as list_ops
 
@@ -9,6 +10,9 @@ def get_signal_color():
 def get_background_color():
     return 0
 
+def fill_image(img,  color):
+    rows,cols = img.shape
+    return cv2.rectangle(img, (0,0), (cols-1, rows-1), color, -1)
 
 def draw_curve_points_zoom(img, curve, color=get_signal_color(), magnify=1):
     if len(curve) == 0: return
@@ -60,4 +64,43 @@ def display_shortening_field(img, curve, curvature, vectorField, color=get_signa
         c = curvature[i]*d
         cv2.line(img, (int(p[0]),int(p[1])), (int(p[0]-magnify*c*v[0]),int(p[1]-magnify*c*v[1])), color, 1)
         i += delta_n
+
+def create_curve_image(curve):
+    curve_width = geom.get_horizontal_amplitude(curve)
+    curve_height = geom.get_vertical_amplitude(curve)
+    image_width = curve_width + curve_width // 2
+    image_height = curve_height + curve_height // 2
+    new_image = np.zeros((image_height, image_width), np.uint8)
+    return new_image
+    
+# detect background and foreground colors in image and 
+# turn it to image with black bakgound and white signal pixels.
+def binarize(image):
+    if image is None:
+         return
+
+    hist = cv2.calcHist([image], [0], None, [256], [0, 256])
+    backgr_color = np.argmax(hist)
+    hist[backgr_color] = 0
+    foregr_color = np.argmax(hist)
+
+    rows,cols = image.shape
+        
+    for row in range(rows):
+            for col in range(cols):
+                if image[row, col] != backgr_color:
+                    image[row, col] = foregr_color
+                    
+    # change colors for standard color scheme: 
+    # 0 --> background, 255 --> signal color.
+    if backgr_color == get_background_color() and foregr_color == get_signal_color():
+        return
+            
+    for row in range(rows):
+        for col in range(cols):
+            if image[row, col] == backgr_color:
+                image[row, col] = get_background_color()
+            else:
+                if image[row, col] == foregr_color:
+                    image[row, col] = get_signal_color()
 
