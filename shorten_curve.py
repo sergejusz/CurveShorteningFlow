@@ -17,7 +17,17 @@ def parse_command_line():
     parser.add_argument('-p', '--preserve_length', required=False, action='store_true', help='preserve length')
     parser.add_argument('-s', '--save_every_n', type=int, required=False, default=5, help='How often image with curve is saved. Default is 5 - every 5th image is saved')
     parser.add_argument('-v', '--vectors', required=False, action='store_true', help='Display curve shortening flow vectors on curve')
+    parser.add_argument('-m', '--median_filter', type=int, required=False, default=0, help='apply median filter for source image with windowsize n')
     return parser.parse_args()
+
+def get_extension(filePath):
+    ext = filePath.rpartition('.')[-1]
+    return ext
+
+def accept_extension(extent):
+    ext = extent.strip().lower()
+    if len(ext) == 0: return False
+    return len([s for s in ["bmp", "png", "jpg", "jpeg"] if s == ext]) == 1
 
 
 # callback function returns True to terminate flow, False otherwise
@@ -77,30 +87,38 @@ def myCallBackClassicLook(curve, curvature, iter, obj):
 def main():
     args = parse_command_line()
     if args is None: exit
-    
+
     if not os.path.exists(args.imagePath):
         print("File '", args.imagePath, "' doesn't exist!")
         exit(1)
 
     imagePath = args.imagePath
-    # load original image
-    img = cv2.imread(imagePath, cv2.IMREAD_GRAYSCALE)
-    assert img is not None, "file could not be read, check with os.path.exists()"
-    
+    extent = get_extension(imagePath)
+    if not accept_extension(extent):
+        print("File '", args.imagePath, "' is not supported!")
+        exit(1)
+
+    extension = '.' + extent
+
     if not os.path.isdir(args.destFolder):
         print("Folder '", args.destFolder, "' doesn't exist!")
         exit(1)
-    
+
+    # load original image
+    img = cv2.imread(imagePath, cv2.IMREAD_GRAYSCALE)
+    assert img is not None, "file could not be read, check with os.path.exists()"
+
     # binarize image and set standard background and foreground colors
     img_ops.binarize(img)
     
-    # perform median filtering with window 3x3
-    median_img = cv2.medianBlur(img, 3)
-    cv2.imwrite(imagePath.replace(".png", "_median.png"), median_img)
+    # perform median filtering
+    median_img = cv2.medianBlur(img, args.median_filter) if args.median_filter > 0 else img
+    if args.median_filter > 0:
+        cv2.imwrite(imagePath.replace(extension, "_median.png"), median_img)
     
     # perform curve thinning
     thinned_img = cv2.ximgproc.thinning(median_img)
-    cv2.imwrite(imagePath.replace(".png", "_thinned.png"), thinned_img)
+    cv2.imwrite(imagePath.replace(extension, "_thinned.png"), thinned_img)
     
     # extract curve from image
     signalColor = img_ops.get_signal_color()
@@ -114,7 +132,7 @@ def main():
     rows,cols = curve_img.shape
     curve = geom.move_curve_center(curve, (cols/2, rows/2))
     img_ops.draw_curve_points(curve_img, curve)
-    cv2.imwrite(imagePath.replace(".png", "_extracted.png"), curve_img)
+    cv2.imwrite(imagePath.replace(extension, "_extracted.png"), curve_img)
 
     # perform smoothing of extracted curve to compensate drawing singularities
     curve = geom.smoothen_curve(curve, 3, 1, 100)
