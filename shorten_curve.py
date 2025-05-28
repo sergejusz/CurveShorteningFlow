@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 import math
 import cv2
 import numpy as np
@@ -8,14 +9,27 @@ import CurveExtractor as ce
 import CurveShortener as cs
 import image_operations as img_ops
 
+def parse_command_line():
+    parser = argparse.ArgumentParser(prog='shorten_curve.py', description='Curve shortening flow demo', epilog='Text at the bottom of help')
+    parser.add_argument('imagePath', help='source image file containing closed simple curve')
+    parser.add_argument('destFolder', help='Folder path to store output images')
+    parser.add_argument('-i', '--iterations', type=int, required=False, default=100, help='max number of iterations')
+    parser.add_argument('-p', '--preserve_length', required=False, action='store_true', help='preserve length')
+    parser.add_argument('-s', '--save_every_n', type=int, required=False, default=5, help='How often image with curve is saved. Default is 5 - every 5th image is saved')
+    parser.add_argument('-v', '--vectors', required=False, action='store_true', help='Display curve shortening flow vectors on curve')
+    return parser.parse_args()
+
 
 # callback function returns True to terminate flow, False otherwise
-def myCallBack(curve, curvature, iter, obj):
+def myCallBackVectorLook(curve, curvature, iter, obj):
     print("iter=", iter, " curve arc length=", geom.get_curve_length(curve))
 
     if obj is not None:
-        if iter % 5 == 0:
-            img = np.zeros((obj[0], obj[1]), np.uint8)
+        n = obj[4]
+        if iter % n == 0:
+            rows = obj[0]
+            cols = obj[1]
+            img = np.zeros((rows, cols), np.uint8)
             
             img_ops.draw_curve_lines(img, curve)
         
@@ -27,40 +41,58 @@ def myCallBack(curve, curvature, iter, obj):
             path = obj[2]
             cv2.imwrite(os.path.join(path, 'image' + (str(iter)).zfill(5) + '.png'), img)
             
-        iterations = obj[3]
+        max_iterations = obj[3]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
-        return (iterations>0 and iter==iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
+        return (max_iterations>0 and iter==max_iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
     return True
+
+def myCallBackClassicLook(curve, curvature, iter, obj):
+    print("iter=", iter, " curve arclength=", geom.get_curve_length(curve))
+
+    if obj is not None:
+        n = obj[4]
+        if iter % n == 0:
+            rows = obj[0]
+            cols = obj[1]
+
+            img = np.zeros((rows, cols), np.uint8)
+            img = img_ops.fill_image(img, 150)
+            img_ops.draw_curve_lines(img, curve, 255)
+            cv2.floodFill(img, None, (0, 0), 255)
+
+            path = obj[2]
+            cv2.imwrite(os.path.join(path, 'image' + (str(iter)).zfill(5) + '.png'), img)
+
+        max_iterations = obj[3]
+        # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
+        return (max_iterations>0 and iter==max_iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
+        
+    return True
+
 #
 # reads image from png file and runs curve shortening flow for it
 # at every iteration curve is saved in folder as png file.
 # Then those images are used to create movie.
 #
 def main():
-    args = sys.argv[1:]
-    if len(args) < 2:
-        print("python shorten_curve.py inputImagePath outputFolderPath [number_of_iterations]")
-        return
+    args = parse_command_line()
+    if args is None: exit
+    
+    if not os.path.exists(args.imagePath):
+        print("File '", args.imagePath, "' doesn't exist!")
+        exit(1)
 
-    if not os.path.exists(args[0]):
-        print("File '", args[0], "' doesn't exist!")
-        return
-
-    imagePath = args[0]
-
+    imagePath = args.imagePath
     # load original image
     img = cv2.imread(imagePath, cv2.IMREAD_GRAYSCALE)
     assert img is not None, "file could not be read, check with os.path.exists()"
     
-    if not os.path.isdir(args[1]):
-        print("Folder '", args[1], "' doesn't exist!")
-        return
-
-    image_folder = args[1]
+    if not os.path.isdir(args.destFolder):
+        print("Folder '", args.destFolder, "' doesn't exist!")
+        exit(1)
     
-    # number of iterations
-    iterations = -1
-    if len(args) >= 2: iterations = int(args[2])
+    # binarize image and set standard background and foreground colors
+    img_ops.binarize(img)
     
     # perform median filtering with window 3x3
     median_img = cv2.medianBlur(img, 3)
@@ -78,10 +110,9 @@ def main():
         print("curveExtractor.extract returned empty curve")
         return
 
-    rows, cols = img.shape
-    sz = max(rows, cols)
+    curve_img = img_ops.create_curve_image(curve)
+    rows,cols = curve_img.shape
     curve = geom.move_curve_center(curve, (cols/2, rows/2))
-    curve_img = np.zeros((sz, sz), np.uint8)
     img_ops.draw_curve_points(curve_img, curve)
     cv2.imwrite(imagePath.replace(".png", "_extracted.png"), curve_img)
 
@@ -89,10 +120,10 @@ def main():
     curve = geom.smoothen_curve(curve, 3, 1, 100)
 
     flow = cs.CurveShortener()
-    # preserve curve length
-    flow.set_preserve_curve_length()
+    if args.preserve_length: 
+        flow.set_preserve_curve_length()
     flow.set_save_additional_info()
-    flow.setCallBack(myCallBack, (rows, cols, image_folder, iterations, False))
+    flow.setCallBack(myCallBackVectorLook if args.vectors else myCallBackClassicLook, (rows, cols, args.destFolder, args.iterations, args.save_every_n))
     flow.run(curve)
    
 

@@ -98,11 +98,6 @@ def shift_curve(curve, index):
 def translate(curve, pt):
     return [(p[0] + pt[0], p[1] + pt[1]) for p in curve]
     
-def translate2(curve, p):
-    x = [p[0] for p in curve]
-    y = [p[1] for p in curve]
-    return [(x[i] + p[0], y[i] + p[1]) for i in range(0, len(curve))]
-
 def move_curve_center(curve, new_center):
     curve_center = get_curve_center(curve)
     #rect_center = (width*0.5, height*0.5)
