@@ -1,0 +1,1 @@
+use option -m (median filter) for curves painted with thick pen. For example, -m5.
