@@ -55,6 +55,7 @@ def get_tangent_field(curve, w=5, po=1):
     y_der1 = signal.savgol_filter([p[1] for p in curve], window_length=w, polyorder=po, deriv=1, mode="wrap")
     return [(x_der1[i],y_der1[i]) for i in range(0, len(x_der1))]
 
+   
 def get_normal_field(curve, w=3, po=1):
     der1 = get_tangent_field(curve, w, po)
     return [(d[1], -d[0]) for d in der1]

@@ -146,7 +146,7 @@ class CurveShortener():
                     curvature = geom.get_curvature(curve, w=window_length, po=poly_order)
                     #print("After resampling number of points=", len(curve))
                     if self.callBack is not None:
-                        finished = self.callBack(curve, curvature, iter, self.callBackObj)
+                        finished = self.callBack(curve, curvature, iter, self.is_circle, self.callBackObj)
                     prev_curve.clear()
                     prev_curve.extend(curve)
                 else:
@@ -157,7 +157,7 @@ class CurveShortener():
                     
             # user supplied callback function is called if set
             if self.callBack is not None:
-                finished = self.callBack(smoothed_curve, curvature, iter, self.callBackObj)
+                finished = self.callBack(smoothed_curve, curvature, iter, self.is_circle, self.callBackObj)
             else:
                 if self.max_iterations is not None:
                     finished = iter >= self.max_iterations
