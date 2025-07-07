@@ -212,7 +212,7 @@ def main():
             print("Invalid color palette '", args.color_palette, "'")
             exit(1)
     else:
-        curve_colors = []
+        curve_colors = [255, 255, 255, 255, 255]
         background_color = ()
 
 
