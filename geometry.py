@@ -230,17 +230,3 @@ def resample_by_interpolation(curve):
 	x = fx(t)
 	y = fy(t)
 	return np.array([fx(t), fy(t)])
-
-
-def resample_by_interpolation2(curve):
-    s = get_curve_length(curve)
-    n = len(curve)
-    # current discretization
-    length_list = get_curve_length_list(curve, wrap=True)
-    fx = interpolate.interp1d(length_list, [p[0] for p in curve] + [curve[0][0]], 'cubic')
-    fy = interpolate.interp1d(length_list, [p[1] for p in curve] + [curve[0][1]], 'cubic')
-    # uniform discretization
-    t = [(s/n)*i for i in range(0, n)]
-    x = fx(t)
-    y = fy(t)
-    return [(x[i], y[i]) for i in range(0, len(x))]
