@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 class CurveExtractor():
     
@@ -51,7 +52,7 @@ class CurveExtractor():
             if self.debugPrint: print("CurveExtractor.extract no valid image is supplied.")
             return []
             
-        rows,cols = image.shape
+        rows,cols = image.shape[:2]
 
         # find curve point
         pos = None
@@ -66,10 +67,12 @@ class CurveExtractor():
         if pos == None:
             return []
 
-        curve = []
+        x = []
+        y = []
         row = pos[1]
         col = pos[0]
-        curve.append((col, row))
+        x.append(col)
+        y.append(row)
         image[row, col] = 0
     
         finished = False
@@ -82,7 +85,8 @@ class CurveExtractor():
                 if image[nextPosition[0], nextPosition[1]] == signalColor:
                     row = nextPosition[0]
                     col = nextPosition[1]
-                    curve.append((col, row))
+                    x.append(col)
+                    y.append(row)
                     image[row, col] = 0
                     nextDirection = d
                     if self.debugPrint: 
@@ -92,7 +96,7 @@ class CurveExtractor():
                 finished = True
             else:
                 directionCode = nextDirection
-        return curve
+        return np.array([x, y])
 
     def clearNeighborhood(self, image, x, y, w, h):
         rows,cols = image.shape
@@ -114,12 +118,8 @@ class CurveExtractor():
             if self.debugPrint: print("CurveExtractor.extract no valid image")
             return
         
-        if len(curve) == 0:
-            if self.debugPrint: print("CurveExtractor.clearByCurve curve is empty")
-            return
-    
-        rows,cols = image.shape
-        for p in curve:
-            self.clearNeighborhood(image, p[0], p[1], w, h)
+        rows,cols = image.shape[:2]
+        for i in range(0, len(curve)):
+            self.clearNeighborhood(image, curve[0][i], curve[1][i], w, h)
             
             

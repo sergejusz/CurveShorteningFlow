@@ -4,6 +4,7 @@ import numpy as np
 from scipy import signal
 import geometry as geom
 import list_operations as list_ops
+import curve_operations as curve_ops
 import collections
 
 def get_signal_color():
@@ -13,61 +14,70 @@ def get_background_color():
     return 0
 
 def fill_image(img,  color):
-    rows,cols = img.shape
+    rows,cols = img.shape[:2]
     return cv2.rectangle(img, (0,0), (cols-1, rows-1), color, -1)
 
 def draw_curve_points_zoom(img, curve, color=get_signal_color(), magnify=1):
-    if len(curve) == 0: return
+    if curve_ops.is_empty_curve(curve): return
 
-    rows,cols = img.shape
-    
-    x_center, y_center = geom.get_curve_center(curve)
-
-    for p in curve:
-        x = int((p[0]-x_center)*magnify+int(cols/2))
-        y = int((p[1]-y_center)*magnify+int(rows/2))
+    rows, cols = img.shape[:2]
+    [cx, cy] = geom.get_curve_center(curve)
+    scaled_curve = np.add(np.astype(np.multiply(np.subtract(curve, [[cx], [cy]]), magnify), np.int32), [[cols // 2], [rows // 2]])
+    for i in range(0, curve_ops.get_curve_size(scaled_curve)):
+        x = scaled_curve[0][i]
+        y = scaled_curve[1][i]
         if x >=0 and x < cols and y >=0 and y < rows:
             img[y,x] = color
+
 
 def draw_curve_points(img, curve, color=get_signal_color()):
-    rows,cols = img.shape
-    for p in curve:
-        x = int(p[0])
-        y = int(p[1])
+    if curve_ops.is_empty_curve(curve): return
+    rows, cols = img.shape[:2]
+    for i in range(0, curve_ops.get_curve_size(curve)):
+        x = int(curve[0][i])
+        y = int(curve[1][i])
         if x >=0 and x < cols and y >=0 and y < rows:
             img[y,x] = color
+
                     
 def draw_curve_lines(img, curve, color=get_signal_color()):
-    attrs = img.shape
-    rows = attrs[0]
-    cols = attrs[1]
-    n = len(curve)
-    p1 = curve[0]
+    if curve_ops.is_empty_curve(curve): return
+    rows, cols = img.shape[:2]
+    n = curve_ops.get_curve_size(curve)
+    x1 = curve[0][0]
+    y1 = curve[1][0]
     for i in range(1,n+1):
-        p2 = curve[i % n]
-        cv2.line(img, (int(p1[0]),int(p1[1])), (int(p2[0]),int(p2[1])), color, 1)
-        p1 = p2
+        x2 = curve[0][i % n]
+        y2 = curve[1][i % n]
+        cv2.line(img, (int(x1),int(y1)), (int(x2),int(y2)), color, 1)
+        x1 = x2
+        y1 = y2
+
 
 def display_vector_field(img, curve, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20):
-    N = len(curve)
-    i = 0
-    while i < N:
-        p = curve[i]
-        v = vectorField[i]
-        cv2.line(img, (int(p[0]),int(p[1])), (int(p[0]-magnify*v[0]),int(p[1]-magnify*v[1])), color, 1)
-        i += delta_n
+    if curve_ops.is_empty_curve(curve): return
+    n = curve_ops.get_curve_size(curve)
+    for i in range(0, n, delta_n):
+        x = curve[0][i]
+        y = curve[1][i]
+        vx = vectorField[0][i]
+        vy = vectorField[1][i]
+        cv2.line(img, (int(x),int(y)), (int(x-magnify*vx),int(y-magnify*vy)), color, 1)
+
         
 def display_shortening_field(img, curve, curvature, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20):
-    N = len(curve)
+    if curve_ops.is_empty_curve(curve): return
+    n = curve_ops.get_curve_size(curve)
+
     maxc = max([math.fabs(c) for c in curvature])
     d = 1.0/maxc
-    i = 0
-    while i < N:
-        p = curve[i]
-        v = vectorField[i]
+    for i in range(0, n, delta_n):
+        x = curve[0][i]
+        y = curve[1][i]
+        vx = vectorField[0][i]
+        vy = vectorField[1][i]
         c = curvature[i]*d
-        cv2.line(img, (int(p[0]),int(p[1])), (int(p[0]-magnify*c*v[0]),int(p[1]-magnify*c*v[1])), color, 1)
-        i += delta_n
+        cv2.line(img, (int(x),int(y)), (int(x-magnify*c*vx),int(y-magnify*c*vy)), color, 1)
 
 
 def draw_cross(img, x, y, color):
@@ -76,9 +86,9 @@ def draw_cross(img, x, y, color):
     cv2.line(img, (x, y-5), (x, y+5), color, 1)
     
 def fill_convex_curve(img, curve, color):
-    if len(curve) == 0: return
-    pc = geom.get_curve_center(curve)
-    cv2.floodFill(img, None, (int(pc[0]), int(pc[1])), color)
+    if curve_ops.is_empty_curve(curve): return
+    [cx, cy] = geom.get_curve_center(curve)
+    cv2.floodFill(img, None, (int(cx), int(cy)), color)
 
 
 # returns True if given color presents in 3x3 neighbourhood of (x,y) for given image
@@ -105,16 +115,19 @@ def fill_curve(img, curve, curvature, color):
     # smooth curvature values
     curvature = signal.savgol_filter(curvature, window_length=3, polyorder=1, mode="wrap")
 
-    n = len(curve)
+    n= curve_ops.get_curve_size(curve)
+	
     # finding seed point for floodfill
     max_pos = np.argmax(curvature)
     for i in range(1, n):
         if max_pos-i < 0 and max_pos-i < -n:
             return
-        p1 = curve[max_pos-i]
-        p2 = curve[(max_pos+i) % n]
-        cx = int(sum(np.multiply([p1[0], p2[0], curve[max_pos][0]], [0.4, 0.4, 0.2])))
-        cy = int(sum(np.multiply([p1[1], p2[1], curve[max_pos][1]], [0.4, 0.4, 0.2])))
+        x1 = curve[0][max_pos-i]
+        y1 = curve[1][max_pos-i]
+        x2 = curve[0][(max_pos+i) % n]
+        y2 = curve[1][(max_pos+i) % n]
+        cx = int(sum(np.multiply([x1, x2, curve[0][max_pos]], [0.4, 0.4, 0.2])))
+        cy = int(sum(np.multiply([y1, y2, curve[1][max_pos]], [0.4, 0.4, 0.2])))
         if cx >= 1 and cx < cols-1 and cy >= 1 and cy < rows-1:
             if curvature[max_pos-i] < 0 or curvature[(max_pos+i) % n] < 0:
                 if not has_color_in_neighborhood(img, cx, cy, color):
@@ -142,12 +155,12 @@ def binarize(image):
     hist[backgr_color] = 0
     foregr_color = np.argmax(hist)
 
-    rows,cols = image.shape
+    rows, cols = image.shape[:2]
         
     for row in range(rows):
-            for col in range(cols):
-                if image[row, col] != backgr_color:
-                    image[row, col] = foregr_color
+        for col in range(cols):
+            if image[row, col] != backgr_color:
+                image[row, col] = foregr_color
                     
     # change colors for standard color scheme: 
     # 0 --> background, 255 --> signal color.
@@ -164,7 +177,7 @@ def binarize(image):
 
 
 def clear_rectangle_at_position(image, x, y, w, h, color):
-    rows,cols = image.shape
+    rows, cols = image.shape[:2]
     w1 = w // 2
     h1 = h // 2
     r1 = y - h1
@@ -182,9 +195,7 @@ def clear_curve(image, curve, w, h, color):
     if image is None:
         return
         
-    if len(curve) == 0:
-        return
-    
-    rows,cols = image.shape
-    for p in curve:
-        clear_rectangle_at_position(image, p[0], p[1], w, h, color)
+    if curve_ops.is_empty_curve(curve): return
+	
+    for i in range(curve_ops.get_curve_size(curve)):
+        clear_rectangle_at_position(image, curve[0][i], curve[1][i], w, h, color)
