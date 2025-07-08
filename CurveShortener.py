@@ -5,6 +5,7 @@ from scipy import signal
 from scipy import interpolate
 import geometry as geom
 import image_operations
+import curve_operations as curve_ops
 import singularity_areas_detection as singular
 
 class CurveShortener():
@@ -61,27 +62,26 @@ class CurveShortener():
         return dl > 5.0
 
 
-    def run(self, source_curve):
-        curve = []
-        curve.extend(source_curve)
+    def run(self, curve):
         
         curvature_integral = geom.get_curvature_over_curve(curve, geom.get_curvature(curve))
+        print(curvature_integral)
         if curvature_integral < 0:
-            curve.reverse()
+            curve = np.flip(curve, axis=1)
 
-        curve = geom.shift_curve(curve, len(curve) // 2)
+        curve = geom.shift_curve(curve, curve_ops.get_curve_size(curve) // 2)
         
         window_length = 5
         poly_order = 2
         number_of_smooth = 1
         curve = geom.resample_by_lsq(curve)
-        density_initial = geom.get_curve_length(curve)/len(curve)
+        density_initial = geom.get_curve_length(curve)/curve_ops.get_curve_size(curve)
         number_of_smooth = 1
         curvature_ratio_history = []
         arclen_history = []
         single_upsampling = False
         # curve at previous step
-        prev_curve = []
+        prev_curve = curve_ops.get_empty_curve()
 
         iter = 0
         finished = False
@@ -95,16 +95,16 @@ class CurveShortener():
                     curve = geom.resample_by_interpolation(curve)
             
             if self.is_circle:
-                curve_center = geom.get_curve_center(curve)
-                r0 = geom.get_mean_distances_to_point(curve_center, curve)
+                cx, cy = geom.get_curve_center(curve)
+                r0 = geom.get_mean_distances_to_point(cx, cy, curve)
             
             #perform smoothing of curve using Savitzky-Golay
             smoothed_curve = geom.smoothen_curve(curve, window_length, poly_order, number_of_smooth)
             # if curve has circle shape we use homothety transformation to compensate 
             # curve slightly shrinks after smoothing
             if self.is_circle:
-                r1 = geom.get_mean_distances_to_point(curve_center, smoothed_curve)
-                smoothed_curve = geom.homothety_transform(smoothed_curve, curve_center, r0/r1)
+                r1 = geom.get_mean_distances_to_point(cx, cy, smoothed_curve)
+                smoothed_curve = geom.homothety_transform(smoothed_curve, cx, cy, r0/r1)
 
             curvature = geom.get_curvature(smoothed_curve, w=window_length, po=poly_order)
             
@@ -130,25 +130,23 @@ class CurveShortener():
                 
                 #print("singular Part n=", count_of_singular_part, " l=", length_of_singular_part, " l/n=", length_of_singular_part/count_of_singular_part)
                 
-                if len(prev_curve) > 0:
-                    smoothed_curve.clear()
-                    smoothed_curve.extend(prev_curve)
+                if curve_ops.get_curve_size(prev_curve) > 0:
+                    smoothed_curve = prev_curve.copy()
                 
                 length_of_regular_part = geom.get_excl_curve_length(smoothed_curve, singular_groups)
-                count_of_regular_part = len(smoothed_curve) - count_of_singular_part
+                count_of_regular_part = curve_ops.get_curve_size(smoothed_curve) - count_of_singular_part
                 #print("regular Part n=", count_of_regular_part, " l=", length_of_regular_part, " l/n=", length_of_regular_part/count_of_regular_part)
                 density_of_singular_part = length_of_singular_part/count_of_singular_part
                 density_of_regular_part = length_of_regular_part/count_of_regular_part
                 if density_of_singular_part < density_of_regular_part:
-                    new_num = int((density_of_singular_part*len(smoothed_curve))/density_of_regular_part)
-                    #print("Resampling: num=", len(smoothed_curve), " new_num=", new_num)
+                    new_num = int((density_of_singular_part*curve_ops.get_curve_size(smoothed_curve))/density_of_regular_part)
+                    #print("Resampling: num=", curve_ops.get_curve_size(smoothed_curve), " new_num=", new_num)
                     curve = geom.resample_by_lsq(smoothed_curve, n=new_num)
                     curvature = geom.get_curvature(curve, w=window_length, po=poly_order)
-                    #print("After resampling number of points=", len(curve))
+                    #print("After resampling number of points=", curve_ops.get_curve_size(curve))
                     if self.callBack is not None:
                         finished = self.callBack(curve, curvature, iter, self.is_circle, self.callBackObj)
-                    prev_curve.clear()
-                    prev_curve.extend(curve)
+                    prev_curve = curve.copy()
                 else:
                     print("density_singular=", density_of_singular_part, " density_regular=", density_of_regular_part)
                     return
@@ -162,8 +160,7 @@ class CurveShortener():
                 if self.max_iterations is not None:
                     finished = iter >= self.max_iterations
 
-            prev_curve.clear()
-            prev_curve.extend(curve)
+            prev_curve = curve.copy()
             curve = self.get_next_curve(smoothed_curve, curvature)
             iter += 1
 
@@ -183,6 +180,19 @@ class CurveShortener():
             self.is_circle = is_circle
 
         normal_unit_field = geom.get_normal_unit_field(curve)
+        return np.subtract(curve, np.multiply(normal_unit_field, np.subtract(curvature, a)))
+
+    def get_next_curve2(self, curve, curvature):
+        a = 0.0
+        if self.preserve_curve_length:
+            l  = geom.get_curve_length(curve)
+            a = 2.0*np.pi/l
+
+        is_circle = geom.is_circle(curve)
+        if is_circle != self.is_circle:
+            self.is_circle = is_circle
+
+        normal_unit_field = geom.get_normal_unit_field(curve)
         next_curve = []        
         for i in range(0, len(curve)):
             p = curve[i]
@@ -191,4 +201,3 @@ class CurveShortener():
             y = p[1] - (curvature[i]-a)*n[1]
             next_curve.append((x, y))
         return next_curve
-
