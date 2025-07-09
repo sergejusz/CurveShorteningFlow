@@ -42,7 +42,7 @@ def accept_extension(extent):
 
 
 # callback function returns True to terminate flow, False otherwise
-def myCallBackVectorLook(curve, curvature, iter, is_circle, obj):
+def myCallBackVectorView(curve, curvature, iter, is_circle, obj):
     print("iter=", iter, " curve arc length=", geom.get_curve_length(curve))
 
     if obj is not None:
@@ -66,7 +66,7 @@ def myCallBackVectorLook(curve, curvature, iter, is_circle, obj):
         return (max_iterations>0 and iter==max_iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
     return True
 
-def myCallBackContourLook(curve, curvature, iter, is_circle, obj):
+def myCallBackContourView(curve, curvature, iter, is_circle, obj):
     print("iter=", iter, " curve arclength=", geom.get_curve_length(curve))
 
     if obj is not None:
@@ -268,7 +268,7 @@ def main():
         if args.preserve_length: 
             flow.set_preserve_curve_length()
         flow.set_save_additional_info()
-        callBackFcn = myCallBackVectorLook if view_style == ViewStyle.VECTOR else (myCallBackSolidLook if view_style == ViewStyle.SOLID else myCallBackContourLook)
+        callBackFcn = myCallBackVectorView if view_style == ViewStyle.VECTOR else (myCallBackSolidView if view_style == ViewStyle.SOLID else myCallBackContourView)
         flow.setCallBack(callBackFcn, (height, width, args.destFolder, args.iterations, args.save_every_n, background_color, curve_colors[i]))
         flow.run(curve)
    
