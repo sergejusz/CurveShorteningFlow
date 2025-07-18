@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import curve_operations as curve_ops
 
 class CurveExtractor():
     
@@ -50,7 +51,7 @@ class CurveExtractor():
     def extract(self, image, signalColor):
         if image is None:
             if self.debugPrint: print("CurveExtractor.extract no valid image is supplied.")
-            return []
+            return curve_ops.get_empty_curve()
             
         rows,cols = image.shape[:2]
 
@@ -65,7 +66,7 @@ class CurveExtractor():
                     pos = (col, row)
 
         if pos == None:
-            return []
+            return curve_ops.get_empty_curve()
 
         x = []
         y = []

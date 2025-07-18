@@ -6,45 +6,11 @@ from numpy.polynomial import polynomial as poly
 import list_operations as list_ops
 import curve_operations as curve_ops
         
-def resample_curve(curve, num):
-    resampled_curve = []
-    if len(curve) == 0 or num == 0: return resampled_curve
-
-    arclen = []
-    arclen.append(0.0)
-    p1 = curve[0]
-    for i in range(1, len(curve)):
-        p2 = curve[i]
-        s = arclen[i-1] + math.hypot(p2[0]-p1[0], p2[1]-p1[1])
-        arclen.append(s)
-        p1 = p2
-
-    L = arclen[-1]
-    step = L/num
-
-    resampled_curve.append(curve[0])
-    j = 0
-    for i in range(1, num):
-        dist = step*i
-        
-        while not (dist >= arclen[j] and dist <= arclen[j+1]):
-            j +=1
-
-        a = (dist - arclen[j])/(arclen[j+1]-arclen[j])
-        p1 = curve[j]
-        p2 = curve[j+1]
-        x = a*p1[0] + (1.0-a)*p2[0]
-        y = a*p1[1] + (1.0-a)*p2[1]
-        resampled_curve.append((x, y))
-    return resampled_curve
-
 
 def get_curvature(curve, w=5, po=2):
-    x_der1 = signal.savgol_filter(curve[0], window_length=w, polyorder=po, deriv=1, mode="wrap")
-    y_der1 = signal.savgol_filter(curve[1], window_length=w, polyorder=po, deriv=1, mode="wrap")
-    x_der2 = signal.savgol_filter(curve[0], window_length=w, polyorder=po, deriv=2, mode="wrap")
-    y_der2 = signal.savgol_filter(curve[1], window_length=w, polyorder=po, deriv=2, mode="wrap")
-    return np.divide(np.subtract(np.multiply(y_der2, x_der1), np.multiply(x_der2, y_der1)), np.power(np.hypot(x_der1, y_der1), 3))
+    der1 = signal.savgol_filter(curve, window_length=w, polyorder=po, deriv=1, mode="wrap")
+    der2 = signal.savgol_filter(curve, window_length=w, polyorder=po, deriv=2, mode="wrap")
+    return np.divide(np.subtract(np.multiply(der2[1], der1[0]), np.multiply(der2[0], der1[1])), np.power(np.hypot(der1[0], der1[1]), 3))
 
 
 def get_tangent_field(curve, w=5, po=1):
@@ -113,24 +79,65 @@ def get_curve_steps(curve):
     return np.append(np.hypot(np.subtract(curve[0][1:], curve[0][:-1]), np.subtract(curve[1][1:],curve[1][:-1])), math.hypot(curve[0][0]-curve[0][-1], curve[1][0]-curve[1][-1]))
 
 
-def get_curve_length_list(curve, wrap=False):
+def get_curve_length_list(curve):
     return np.cumsum(np.append([0.0], get_curve_steps(curve)))
 
 
+def get_curve_length_from_list(curve_length_list):
+    if len(curve_length_list) == 0:
+        return 0.0
+    return curve_length_list[-1]
+
+
+def get_curve_steps_from_list(curve_length_list):
+    return np.subtract(curve_length_list[1:], curve_length_list[:-1])
+
+
+def get_part_curve_length_from_list(curve_length_list, i, j):
+    n = len(curve_length_list)
+    if n <= 2: return 0
+    if i == j: return 0
+    if i >= n: return 0
+    
+    if j < i:
+        print("get_part_curve_length len=", n, " i=", i, " j=", j)
+        return curve_length_list[-1] - curve_length_list[i] + curve_length_list[j % (n-1)] - curve_length_list[0]
+
+    return curve_length_list[j] - curve_length_list[i]
+
+
+# groups is a list of tuples that contain i1 and i2 - first and last index of point in curve
+def get_excl_curve_length_from_list(curve_length_list, groups):
+	n = len(curve_length_list)
+    
+	l = get_curve_length_from_list(curve_length_list)
+	if len(groups) == 0:
+		return l
+
+	s = 0
+	for group in groups:
+		s += get_part_curve_length_from_list(curve_length_list, group[0], group[1])
+	return l - s
+
+
 def get_part_curve_length(curve, i, j):
-	if curve_ops.is_empty_curve(curve): return 0
-	n = curve_ops.get_curve_size(curve)
-	if i == j: return 0
-	l = 0;
-	x1 = curve[0][i % n]
-	y1 = curve[1][i % n]
-	for k in range(i+1, j+1):
-		x2 = curve[0][k % n]
-		y2 = curve[1][k % n]
-		l += math.hypot(x2-x1, y2-y1)
-		x1 = x2
-		y1 = y2
-	return l
+    if curve_ops.is_empty_curve(curve): return 0
+    n = curve_ops.get_curve_size(curve)
+    if i == j: return 0
+
+    if j < i:
+        print("get_part_curve_length len=", n, " i=", i, " j=", j)
+
+    l = 0;
+    x1 = curve[0][i % n]
+    y1 = curve[1][i % n]
+    for k in range(i+1, j+1):
+        x2 = curve[0][k % n]
+        y2 = curve[1][k % n]
+        l += math.hypot(x2-x1, y2-y1)
+        x1 = x2
+        y1 = y2
+    return l
 
 def get_excl_curve_length(curve, groups):
 	if curve_ops.is_empty_curve(curve): return 0
@@ -142,7 +149,7 @@ def get_excl_curve_length(curve, groups):
 		return l
 
 	s = 0
-	for i in range(0, m):
+	for i in range(m):
 		s += get_part_curve_length(curve, groups[i][0], groups[i][1])
 	return l - s
 
@@ -218,15 +225,16 @@ def resample_by_lsq(curve, w=7, polyorder=2, n=-1):
 		if i == 0: i = 1
 	return np.array([x_vec, y_vec])
 
-def resample_by_interpolation(curve):
-	s = get_curve_length(curve)
-	n = curve_ops.get_curve_size(curve)
-	# current discretization
-	length_list = get_curve_length_list(curve, wrap=True)
-	fx = interpolate.interp1d(length_list, np.append(curve, [[curve[0][0]], [curve[1][0]]], axis=1)[0], 'cubic')
-	fy = interpolate.interp1d(length_list, np.append(curve, [[curve[0][0]], [curve[1][0]]], axis=1)[1], 'cubic')
-	# uniform discretization
-	t = np.linspace(0.0, s, n, endpoint=False)
-	x = fx(t)
-	y = fy(t)
-	return np.array([fx(t), fy(t)])
+def resample_by_interpolation(curve, n=-1):
+    s = get_curve_length(curve)
+    nc = curve_ops.get_curve_size(curve)
+    m = n if n > 0 else nc
+    # current discretization
+    length_list = get_curve_length_list(curve)
+    fx = interpolate.interp1d(length_list, np.append(curve, [[curve[0][0]], [curve[1][0]]], axis=1)[0], 'cubic')
+    fy = interpolate.interp1d(length_list, np.append(curve, [[curve[0][0]], [curve[1][0]]], axis=1)[1], 'cubic')
+    # uniform discretization
+    t = np.linspace(0.0, s, m, endpoint=False)
+    x = fx(t)
+    y = fy(t)
+    return np.array([fx(t), fy(t)])

@@ -1,6 +1,7 @@
 import sys
 import os
-from enum import Enum
+#from enum import Enum
+from enum import IntEnum
 import argparse
 import math
 import cv2
@@ -12,12 +13,21 @@ import image_operations as img_ops
 import color_operations as color_ops
 import curve_operations as curve_ops
 
-class ViewStyle(Enum):
-    INVALID = -1
-    CONTOUR = 1
-    SOLID = 2
-    VECTOR = 3
-    
+class ViewStyle(IntEnum):
+    Invalid = -1
+    Contour = 1
+    Solid = 2
+    Vector = 3
+
+class CallbackArgs(IntEnum):
+    Rows = 0
+    Cols = 1
+    Path = 2
+    MaxIterations = 3
+    SaveToFileCounter = 4
+    BackgroundColor = 5
+    ForegroundColor = 6
+
 def parse_command_line():
     parser = argparse.ArgumentParser(prog='shorten_curve.py', description='Curve shortening flow demo', epilog='Text at the bottom of help')
     parser.add_argument('imagePath', help='source image file containing closed simple curve')
@@ -29,6 +39,7 @@ def parse_command_line():
     parser.add_argument('-m', '--median_filter', type=int, required=False, default=0, choices=[3,5,7,9], help='apply median filter for source image with windowsize n')
     parser.add_argument('-n', '--number_curves', type=int, required=False, default=1, choices=[1,2,3,4,5], help='sets number of curves to apply shortening flow')
     parser.add_argument('-c', '--color_palette', type=str, required=False, default='blue', choices=['blue','green','red'], help='sets coloring for visualization of filled curves')
+    parser.add_argument('-a', '--save_add_info', required=False, action='store_true', help='save additional information')
     return parser.parse_args()
 
 def get_extension(filePath):
@@ -46,22 +57,21 @@ def myCallBackVectorView(curve, curvature, iter, is_circle, obj):
     print("iter=", iter, " curve arc length=", geom.get_curve_length(curve))
 
     if obj is not None:
-        n = obj[4]
+        n = obj[CallbackArgs.SaveToFileCounter]
         if iter % n == 0:
-            rows = obj[0]
-            cols = obj[1]
-            path = obj[2]
-            file_path = os.path.join(path, 'image' + (str(iter)).zfill(5) + '.png')
+            rows = obj[CallbackArgs.Rows]
+            cols = obj[CallbackArgs.Cols]
+            file_path = os.path.join(obj[CallbackArgs.Path], 'image' + (str(iter)).zfill(5) + '.png')
             image_exists = os.path.exists(file_path)
             img =  cv2.imread(file_path, cv2.IMREAD_GRAYSCALE) if image_exists else np.zeros((rows, cols), np.uint8)
             if not img is None:
                 img_ops.draw_curve_lines(img, curve)
                 normal_field = geom.get_normal_field(curve)
                 normal_unit_field = geom.normalize(normal_field)
-                img_ops.display_shortening_field(img, curve, curvature, normal_unit_field, obj[6])
+                img_ops.display_shortening_field(img, curve, curvature, normal_unit_field, obj[CallbackArgs.ForegroundColor])
                 cv2.imwrite(file_path, img)
             
-        max_iterations = obj[3]
+        max_iterations = obj[CallbackArgs.MaxIterations]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return (max_iterations>0 and iter==max_iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
     return True
@@ -70,20 +80,18 @@ def myCallBackContourView(curve, curvature, iter, is_circle, obj):
     print("iter=", iter, " curve arclength=", geom.get_curve_length(curve))
 
     if obj is not None:
-        n = obj[4]
+        n = obj[CallbackArgs.SaveToFileCounter]
         if iter % n == 0:
-            rows = obj[0]
-            cols = obj[1]
-            path = obj[2]
-            file_path = os.path.join(path, 'image' + (str(iter)).zfill(5) + '.png')
+            rows = obj[CallbackArgs.Rows]
+            cols = obj[CallbackArgs.Cols]
+            file_path = os.path.join(obj[CallbackArgs.Path], 'image' + (str(iter)).zfill(5) + '.png')
             image_exists = os.path.exists(file_path)
             img =  cv2.imread(file_path, cv2.IMREAD_COLOR) if image_exists else np.zeros((rows, cols, 3), np.uint8)
-            
             if not img is None:
-                img_ops.draw_curve_lines(img, curve, obj[6])
+                img_ops.draw_curve_lines(img, curve, obj[CallbackArgs.ForegroundColor])
                 cv2.imwrite(file_path, img)
 
-        max_iterations = obj[3]
+        max_iterations = obj[CallbackArgs.MaxIterations]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return (max_iterations>0 and iter==max_iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
         
@@ -93,25 +101,24 @@ def myCallBackSolidView(curve, curvature, iter, is_circle, obj):
     print("iter=", iter, " curve arclength=", geom.get_curve_length(curve))
 
     if obj is not None:
-        n = obj[4]
+        n = obj[CallbackArgs.SaveToFileCounter]
         if iter % n == 0:
-            rows = obj[0]
-            cols = obj[1]
-            path = obj[2]
-            file_path = os.path.join(path, 'image' + (str(iter)).zfill(5) + '.png')
+            rows = obj[CallbackArgs.Rows]
+            cols = obj[CallbackArgs.Cols]
+            file_path = os.path.join(obj[CallbackArgs.Path], 'image' + (str(iter)).zfill(5) + '.png')
             image_exists = os.path.exists(file_path)
             img =  cv2.imread(file_path, cv2.IMREAD_COLOR) if image_exists else np.zeros((rows, cols, 3), np.uint8)
             
-            cv2.floodFill(img, None, (1, 1), obj[5])
+            cv2.floodFill(img, None, (1, 1), obj[CallbackArgs.BackgroundColor])
             if not img is None:
-                img_ops.draw_curve_lines(img, curve, obj[6])
+                img_ops.draw_curve_lines(img, curve, obj[CallbackArgs.ForegroundColor])
                 if min(curvature) >= 0:
-                    img_ops.fill_convex_curve(img, curve, obj[6])
+                    img_ops.fill_convex_curve(img, curve, obj[CallbackArgs.ForegroundColor])
                 else:
-                    img_ops.fill_curve(img, curve, curvature, obj[6])
+                    img_ops.fill_curve(img, curve, curvature, obj[CallbackArgs.ForegroundColor])
                 cv2.imwrite(file_path, img)
 
-        max_iterations = obj[3]
+        max_iterations = obj[CallbackArgs.MaxIterations]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return (max_iterations>0 and iter==max_iterations) or (max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
         
@@ -155,12 +162,12 @@ def get_background_color(coloring_name):
 def get_view_style(view_style):
     upper_name = view_style.upper()
     if upper_name == 'CONTOUR':
-        return ViewStyle.CONTOUR
+        return ViewStyle.Contour
     if upper_name == 'SOLID':
-        return ViewStyle.SOLID
+        return ViewStyle.Solid
     if upper_name == 'VECTOR':
-        return ViewStyle.VECTOR
-    return ViewStyle.INVALID
+        return ViewStyle.Vector
+    return ViewStyle.Invalid
 
 #
 # reads image from png file and runs curve shortening flow for it
@@ -210,10 +217,8 @@ def main():
    
     # extract curves from image
     curves = []
-    min_cols = []
-    max_cols = []
-    min_rows = []
-    max_rows = []
+    curve_cols = []
+    curve_rows = []
     num_extracted = 0
     for i in range(0, args.number_curves):
         curve = extract_curve(thinned_img)
@@ -221,10 +226,10 @@ def main():
         if nc > 0:
             print("len=", nc)
             curves.append(curve)
-            min_cols.append(int(min(curve[0])))
-            min_rows.append(int(min(curve[1])))
-            max_cols.append(int(max(curve[0])))
-            max_rows.append(int(max(curve[1])))
+            curve_cols.append(int(min(curve[0])))
+            curve_cols.append(int(max(curve[0])))
+            curve_rows.append(int(min(curve[1])))
+            curve_rows.append(int(max(curve[1])))
             curve_img = save_curve_to_image(curve)
             cv2.imwrite(imagePath.replace(extension, "_extracted" + str(i+1) + ".png"), curve_img)
             num_extracted += 1
@@ -233,19 +238,19 @@ def main():
             break
 
     if num_extracted != args.number_curves:
-        print("ERROR: Number of extracted curves = ", num_extracted, " is less than ". args.number_curves)
+        print("ERROR: Number of extracted curves = ", num_extracted, " is less than ", args.number_curves)
         return
     
-    width = max(max_cols) - min(min_cols)
-    dx = width // 10 - min(min_cols)
+    width = max(curve_cols) - min(curve_cols)
+    dx = width // 10 - min(curve_cols)
     width += width // 5
-    height = max(max_rows) - min(min_rows)
-    dy = height // 10 - min(min_rows)
+    height = max(curve_rows) - min(curve_rows)
+    dy = height // 10 - min(curve_rows)
     height += height // 5
     
     view_style =  get_view_style(args.view)
     
-    if view_style == ViewStyle.SOLID:
+    if view_style == ViewStyle.Solid:
         curve_colors = get_color_palette(args.color_palette)
         if len(curve_colors) == 0:
             print("Invalid color palette '", args.color_palette, "'")
@@ -267,8 +272,9 @@ def main():
         flow = cs.CurveShortener()
         if args.preserve_length: 
             flow.set_preserve_curve_length()
-        flow.set_save_additional_info()
-        callBackFcn = myCallBackVectorView if view_style == ViewStyle.VECTOR else (myCallBackSolidView if view_style == ViewStyle.SOLID else myCallBackContourView)
+        if args.save_add_info:
+            flow.set_save_additional_info()
+        callBackFcn = myCallBackVectorView if view_style == ViewStyle.Vector else (myCallBackSolidView if view_style == ViewStyle.Solid else myCallBackContourView)
         flow.setCallBack(callBackFcn, (height, width, args.destFolder, args.iterations, args.save_every_n, background_color, curve_colors[i]))
         flow.run(curve)
    
