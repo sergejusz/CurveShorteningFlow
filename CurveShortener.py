@@ -121,7 +121,7 @@ class CurveShortener():
 
             curve_length_array = geom.get_curve_length_list(curve)
             curve_length = geom.get_curve_length_from_list(curve_length_array)
-            curvature = geom.get_curvature(curve, w=window_length, po=poly_order)
+            curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
             
             if self.save_additional_info:
                 arclen_history.append(curve_length)
@@ -149,7 +149,7 @@ class CurveShortener():
                     curve = geom.resample_by_interpolation(curve, n=new_num)
                     curve_length_array = geom.get_curve_length_list(curve)
                     curve_length = geom.get_curve_length_from_list(curve_length_array)
-                    curvature = geom.get_curvature(curve, w=window_length, po=poly_order)
+                    curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
                     
             # user supplied callback function is called if set
             if self.callBack is not None:
