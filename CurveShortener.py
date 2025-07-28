@@ -16,7 +16,7 @@ class CurveShortener():
         self.callBackObj = None
         self.max_iterations = None
         # set True to preserve length of curve
-        self.preserve_curve_length = False
+        self.preserve_area = False
         self.is_circle = False
         self.use_lsq_resample = False
         self.save_additional_info = False
@@ -39,8 +39,8 @@ class CurveShortener():
                 print(v, file=output)
             output.close()
 
-    def set_preserve_curve_length(self):
-        self.preserve_curve_length = True
+    def set_preserve_area(self):
+        self.preserve_area = True
         
     def set_use_lsq_resample(self):
         self.use_lsq_resample = True
@@ -153,7 +153,7 @@ class CurveShortener():
                     
             # user supplied callback function is called if set
             if self.callBack is not None:
-                finished = self.callBack(curve, curvature, iter, self.is_circle, self.callBackObj)
+                finished = self.callBack(curve, curvature, curve_length, iter, self.is_circle, self.callBackObj)
             else:
                 if self.max_iterations is not None:
                     finished = iter >= self.max_iterations
@@ -169,7 +169,7 @@ class CurveShortener():
     
     def get_next_curve(self, curve, curvature, curve_length):
         a = 0.0
-        if self.preserve_curve_length:
+        if self.preserve_area:
             a = 2.0*np.pi/curve_length
 
         is_circle = geom.is_circle(curve)

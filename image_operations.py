@@ -54,7 +54,7 @@ def draw_curve_lines(img, curve, color=get_signal_color()):
         y1 = y2
 
 
-def display_vector_field(img, curve, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20):
+def display_vector_field(img, curve, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20.0):
     if curve_ops.is_empty_curve(curve): return
     n = curve_ops.get_curve_size(curve)
     for i in range(0, n, delta_n):
@@ -65,7 +65,7 @@ def display_vector_field(img, curve, vectorField, color=get_signal_color(), delt
         cv2.line(img, (int(x),int(y)), (int(x-magnify*vx),int(y-magnify*vy)), color, 1)
 
         
-def display_shortening_field(img, curve, curvature, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20):
+def display_shortening_field(img, curve, curvature, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20.0):
     if curve_ops.is_empty_curve(curve): return
     n = curve_ops.get_curve_size(curve)
 
