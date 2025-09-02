@@ -3,6 +3,7 @@ import os
 import argparse
 import cv2
 import numpy as np
+import image_operations as image_ops
 
 def parse_command_line():
     parser = argparse.ArgumentParser(prog='decimate_images.py', description='filter image files',
@@ -14,6 +15,21 @@ def parse_command_line():
 
 
 def get_similarity_measure(base_image, image):
+    xor_img = cv2.bitwise_xor(base_image, image)
+    #print("xor_count=", np.sum(np.sign(xor_img)))
+    median_img = cv2.medianBlur(xor_img, 3)
+    height, width = base_image.shape
+    median_count = np.sum(np.sign(median_img))
+    #if median_count > 0:
+    if True:
+        signal_count = np.sum(np.sign(image))
+        xor_count = np.sum(np.sign(xor_img))
+        print("median_count=", median_count, " signal_count=", signal_count, " xor_count=", xor_count)
+        return (xor_count*100.0)/signal_count
+    return 0
+
+
+def get_similarity_measure2(base_image, image):
     xor_img = cv2.bitwise_xor(base_image, image)
     #print("xor_count=", np.sum(np.sign(xor_img)))
     median_img = cv2.medianBlur(xor_img, 3)
@@ -43,6 +59,8 @@ def decimate_images(source_image_folder, dest_image_folder, threshold):
     # Set frame from the first image
     base_idx = 0
     frame1 = cv2.imread(os.path.join(source_image_folder, images[base_idx]))
+    gray_image1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+    #image_ops.binarize(gray_image1)
     finished = False
     while not finished:
         if base_idx >= len(images)-2:
@@ -52,11 +70,17 @@ def decimate_images(source_image_folder, dest_image_folder, threshold):
         finished = True
         for i in range(base_idx+1, len(images)):
             frame2 = cv2.imread(os.path.join(source_image_folder, images[i]))
-            p = get_similarity_measure(frame1, frame2)
+            gray_image2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+            #image_ops.binarize(gray_image2)
+            p = get_similarity_measure(gray_image1, gray_image2)
+            print("similarity_measure=", p)
             if p > threshold:
-                cv2.imwrite(os.path.join(dest_image_folder, images[base_idx]), frame1)
+                #cv2.imwrite(os.path.join(dest_image_folder, images[base_idx]), frame1)
+                xor_img = cv2.bitwise_xor(gray_image1, gray_image2)
+                cv2.imwrite(os.path.join(dest_image_folder, images[base_idx]), xor_img)
                 count += 1
                 frame1 = frame2
+                gray_image1 = gray_image2
                 base_idx = i
                 print("Next file #", i, " '", os.path.join(dest_image_folder, images[base_idx]), "'")
                 finished = False
