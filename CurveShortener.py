@@ -23,6 +23,7 @@ class CurveShortener():
         self.window_length = 5
         self.poly_order = 2
         self.number_of_smooth = 1
+        self.max_iterations_without_downsampling = 10
 
 
     def setMaxIterations(self, iterations):
@@ -77,20 +78,6 @@ class CurveShortener():
         return (curve_ops.get_curve_size(curve) - count)/(geom.get_curve_length_from_list(curve_length_list) - s)
 
 
-    def smoothen_curve(self, curve):
-        # get data that we need for compensation of shrinking effect of smoothing
-        # for that we use average distance from curve points to the center of a curve
-        cx, cy = geom.get_curve_center(curve)
-        r0 = geom.get_mean_distances_to_point(cx, cy, curve)
-        
-        #perform smoothing of curve using Savitzky-Golay
-        curve = geom.smoothen_curve(curve, self.window_length, self.poly_order, self.number_of_smooth)
-        # we use homothety transformation to compensate that
-        # curve slightly shrinks after smoothing
-        r1 = geom.get_mean_distances_to_point(cx, cy, curve)
-        return geom.homothety_transform(curve, cx, cy, r0/r1)
-
-
     def run(self, curve):
         
         curvature_integral = geom.get_curvature_over_curve(curve, geom.get_curvature(curve))
@@ -103,10 +90,13 @@ class CurveShortener():
         curve = geom.resample_by_lsq(curve)
         curvature_ratio_history = []
         arclen_history = []
+        accumulated_curves = []
         # curve at previous step
         prev_curve = curve_ops.get_empty_curve()
-        prev_curve_length = 0.0
-
+        # initial number of points per curve length
+        num_points_per_length = curve_ops.get_curve_size(curve)/geom.get_curve_length(curve)
+        # variable to count number of iterations after downsampling
+        counter = 0
         iter = 0
         finished = False
         while not finished:
@@ -117,11 +107,20 @@ class CurveShortener():
                 else:
                     curve = geom.resample_by_interpolation(curve)
             
-            curve = self.smoothen_curve(curve)
+            curve = geom.smoothen_with_compensation_curve(curve, w_l=5, p_o=2, iter=1)
 
             curve_length_array = geom.get_curve_length_list(curve)
             curve_length = geom.get_curve_length_from_list(curve_length_array)
             curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
+            # if number of iterations without downsampling is big enough
+            if counter == self.max_iterations_without_downsampling:
+                new_num = int(num_points_per_length * curve_length)
+                if curve_ops.get_curve_size(curve) + 1 < new_num:
+                    curve = geom.resample_by_interpolation(curve, n=new_num)
+                    curve_length_array = geom.get_curve_length_list(curve)
+                    curve_length = geom.get_curve_length_from_list(curve_length_array)
+                    curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
+
             
             if self.save_additional_info:
                 arclen_history.append(curve_length)
@@ -150,6 +149,7 @@ class CurveShortener():
                     curve_length_array = geom.get_curve_length_list(curve)
                     curve_length = geom.get_curve_length_from_list(curve_length_array)
                     curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
+                    counter = 0
                     
             # user supplied callback function is called if set
             if self.callBack is not None:
@@ -159,14 +159,24 @@ class CurveShortener():
                     finished = iter >= self.max_iterations
 
             prev_curve = curve.copy()
+            #s0 = geom.get_convex_curve_square(curve)
+
             curve = self.get_next_curve(curve, curvature, curve_length)
+
+            #s1 = geom.get_convex_curve_square(curve)
+            #print(curve_ops.get_curve_size(curve), " --> ", curve_length)
+            #if s0 > s1:
+            #    print("s0=", "{:.5f}".format(s0), " > s1=", "{:.5f}".format(s1), "s0=", (100.0*math.fabs(s0-s1))/s0 )
+            #else:
+            #    print("s0=", "{:.5f}".format(s0), " <= s1=", "{:.5f}".format(s1), "s0=", (100.0 * math.fabs(s0 - s1)) / s0)
+
             iter += 1
+            counter += 1
 
         if self.save_additional_info:
             self.save_list(arclen_history, prefix="arclen_"+str(iter))
             self.save_list(curvature_ratio_history, prefix="curvature_ratio_history_"+str(iter))
 
-    
     def get_next_curve(self, curve, curvature, curve_length):
         a = 0.0
         if self.preserve_area:

@@ -40,10 +40,24 @@ def smoothen_curve(curve, w=3, po=2, iter=1):
     return curve
 
 
+def smoothen_with_compensation_curve(curve, w_l=3, p_o=2, iter=1):
+    # get data that we need for compensation of shrinking effect of smoothing
+    # for that we use average distance from curve points to the center of a curve
+    cx, cy = get_curve_center(curve)
+    r0 = get_mean_distances_to_point(cx, cy, curve)
+    s0 = get_convex_curve_square(curve)
+
+    #perform smoothing of curve using Savitzky-Golay
+    curve = smoothen_curve(curve, w_l, p_o, iter)
+    # we use homothety transformation to compensate that
+    # curve slightly shrinks after smoothing
+    r1 = get_mean_distances_to_point(cx, cy, curve)
+    return homothety_transform(curve, cx, cy, r0 / r1)
+
 def shift_curve(curve, index):
     n = curve.shape[1:][0]
     if n == 0:
-        return get_empty_curve()
+        return curve_ops.get_empty_curve()
     idx1 = [(i + index) % n for i in range(0, n)]
     idx2 = [n + (i + index) % n for i in range(0, n)]
     return np.take(curve, [idx1, idx2])
@@ -165,6 +179,14 @@ def get_excl_curve_length(curve, groups):
         s += get_part_curve_length(curve, groups[i][0], groups[i][1])
     return l - s
 
+# returns square of convex figure dividing it with triangles
+def get_convex_curve_square(curve):
+    [cx, cy] = get_curve_center(curve)
+
+    d = get_distances_to_point(cx, cy, curve)
+    s = get_curve_steps(curve)
+    p = np.multiply(np.add(np.add(d, np.roll(d, -1)), s), 0.5)
+    return np.sum(np.sqrt(np.multiply(np.multiply(p, np.subtract(p, d)), np.multiply(np.subtract(p, s), np.subtract(p, np.roll(d, -1))))))
 
 def get_curvature_over_curve(curve, curvature):
     if curve_ops.is_empty_curve(curve): return 0.0
@@ -190,8 +212,8 @@ def get_radius_estimation(curve):
 
 def is_circle(curve):
     if curve_ops.is_empty_curve(curve): return False
-    pc = get_curve_center(curve)
-    distances = get_distances_to_point(pc[0], pc[1], curve)
+    [cx, cy] = get_curve_center(curve)
+    distances = get_distances_to_point(cx, cy, curve)
     radius_estimated = list_ops.median_value(distances)
     s = get_curve_length(curve)
     radius = s / (2.0 * np.pi)
