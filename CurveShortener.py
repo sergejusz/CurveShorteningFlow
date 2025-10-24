@@ -11,10 +11,12 @@ import singularity_areas_detection as singular
 class CurveShortener():
     
     def __init__(self):
-        self.iter = 0
+        """
+        Creates curve shortening flow object.
+        """
         self.callBack = None
         self.callBackObj = None
-        self.max_iterations = None
+        self.max_iterations = 1
         # set True to preserve length of curve
         self.preserve_area = False
         self.is_circle = False
@@ -27,13 +29,27 @@ class CurveShortener():
 
 
     def setMaxIterations(self, iterations):
+        """
+        Sets max. number of iterations.
+        :param iterations: max. number of iterations.
+        """
         self.max_iterations = iterations
 
     def setCallBack(self, callBackFcn, obj=None):
+        """
+        Sets function that is called at each iteration.
+        :param callBackFcn: callback function object.
+        :param obj: object containing callback specific information.
+        """
         self.callBack = callBackFcn
         self.callBackObj = obj
        
     def save_list(self, dataList, prefix="save_values_"):
+        """
+        Saves list values to text file.
+        :param dataList: list of values..
+        :param prefix: prefix for file name.
+        """
         filePath = prefix + ".txt"
         with open(filePath, mode='w', encoding='UTF-8') as output:
             for v in dataList:
@@ -41,15 +57,30 @@ class CurveShortener():
             output.close()
 
     def set_preserve_area(self):
+        """
+        Sets area preservation flag.
+        """
         self.preserve_area = True
         
     def set_use_lsq_resample(self):
+        """
+        Sets usage of LSQ for resampling.
+        Otherwise interpolation is used.
+        """
         self.use_lsq_resample = True
         
     def set_save_additional_info(self):
+        """
+        Applies curve shortening flow operation to given curve,
+        """
         self.save_additional_info = True
 
     def has_big_deviation_step(self, curve):
+        """
+        Detects if variance of lengths of curve segments is bigger than threshold.
+        :param curve: curve data.
+        :return True if variance of lengths of curve segments is bigger than threshold.
+        """
         if curve_ops.get_curve_size(curve):
             return False
         length_list = geom.get_curve_steps(curve)
@@ -61,6 +92,12 @@ class CurveShortener():
 
 
     def get_density_for_singular_part(self, parts, curve_length_list):
+        """
+        Calculates number of points per length for given parts of curve (singular part of curve).
+        :param parts: list of pairs of positions in curve that contain singular part of curve.
+        :param curve_length_list: list of lengths of curve segments.
+        :return curve points density
+        """
         length = 0.0
         count = 0
         for part in parts:
@@ -70,16 +107,26 @@ class CurveShortener():
 
 
     def get_density_for_regular_part(self, parts, curve, curve_length_list):
-        s = 0.0
+        """
+        Calculates number of points per length for given parts of curve (regular part of curve).
+        :param parts: list of pairs of positions in curve that contain singular part of curve.
+        :param curve: curve data.
+        :param curve_length_list: list of lengths of curve segments
+        :return curve points density
+        """
+        length = 0.0
         count = 0
         for part in parts:
-            s += geom.get_part_curve_length_from_list(curve_length_list, part[0], part[1])
+            length += geom.get_part_curve_length_from_list(curve_length_list, part[0], part[1])
             count += part[1] - part[0] + 1
-        return (curve_ops.get_curve_size(curve) - count)/(geom.get_curve_length_from_list(curve_length_list) - s)
+        return (curve_ops.get_curve_size(curve) - count)/(geom.get_curve_length_from_list(curve_length_list) - length)
 
 
     def run(self, curve):
-        
+        """
+        Applies curve shortening flow to given curve.
+        :param curve: curve data.
+        """
         curvature_integral = geom.get_curvature_over_curve(curve, geom.get_curvature(curve))
         #print(curvature_integral)
         if curvature_integral < 0:
@@ -97,7 +144,7 @@ class CurveShortener():
         num_points_per_length = curve_ops.get_curve_size(curve)/geom.get_curve_length(curve)
         # variable to count number of iterations after downsampling
         counter = 0
-        iter = 0
+        iteration = 0
         finished = False
         while not finished:
             if self.has_big_deviation_step(curve):
@@ -107,7 +154,7 @@ class CurveShortener():
                 else:
                     curve = geom.resample_by_interpolation(curve)
             
-            curve = geom.smoothen_with_compensation_curve(curve, w_l=5, p_o=2, iter=1)
+            curve = geom.smoothen_with_compensation_curve(curve, w=5, po=2, iterations=1)
 
             curve_length_array = geom.get_curve_length_list(curve)
             curve_length = geom.get_curve_length_from_list(curve_length_array)
@@ -133,7 +180,7 @@ class CurveShortener():
                 singular_groups = singular.detect(curvature)
                 if len(singular_groups) > 0:
                     if self.save_additional_info:
-                        self.save_list(curvature, prefix="singular_curvature_"+str(iter))
+                        self.save_list(curvature, prefix="singular_curvature_"+str(iteration))
 
                     density_of_singular_part = self.get_density_for_singular_part(singular_groups, curve_length_array)
                     
@@ -153,10 +200,10 @@ class CurveShortener():
                     
             # user supplied callback function is called if set
             if self.callBack is not None:
-                finished = self.callBack(curve, curvature, curve_length, iter, self.is_circle, self.callBackObj)
+                finished = self.callBack(curve, curvature, curve_length, iteration, self.is_circle, self.callBackObj)
             else:
                 if self.max_iterations is not None:
-                    finished = iter >= self.max_iterations
+                    finished = iteration >= self.max_iterations
 
             prev_curve = curve.copy()
             #s0 = geom.get_convex_curve_square(curve)
@@ -170,17 +217,22 @@ class CurveShortener():
             #else:
             #    print("s0=", "{:.5f}".format(s0), " <= s1=", "{:.5f}".format(s1), "s0=", (100.0 * math.fabs(s0 - s1)) / s0)
 
-            iter += 1
+            iteration += 1
             counter += 1
 
         if self.save_additional_info:
-            self.save_list(arclen_history, prefix="arclen_"+str(iter))
-            self.save_list(curvature_ratio_history, prefix="curvature_ratio_history_"+str(iter))
+            self.save_list(arclen_history, prefix="arclen_"+str(iteration))
+            self.save_list(curvature_ratio_history, prefix="curvature_ratio_history_"+str(iteration))
 
-    def get_next_curve(self, curve, curvature, curve_length):
-        a = 0.0
-        if self.preserve_area:
-            a = 2.0*np.pi/curve_length
+    def get_next_curve(self, curve : np.ndarray, curvature : np.ndarray, curve_length : float) -> np.ndarray :
+        """
+        Applies single curve shortening flow operation to given curve,
+        :param curve: curve data.
+        :param curvature: curvature array.
+        :param curve_length: length of curve.
+        :return curve after shortening flow applied.
+        """
+        a = (2.0*np.pi)/curve_length if self.preserve_area else 0.0
 
         is_circle = geom.is_circle(curve)
         if is_circle != self.is_circle:
