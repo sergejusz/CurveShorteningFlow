@@ -17,6 +17,13 @@ def fill_image(img,  color):
     rows,cols = img.shape[:2]
     return cv2.rectangle(img, (0,0), (cols-1, rows-1), color, -1)
 
+def save_curve_to_image(curve):
+    img = create_curve_image(curve)
+    rows, cols = img.shape
+    curve = geom.move_curve_center(curve, cols / 2, rows / 2)
+    draw_curve_points(img, curve)
+    return img
+
 def draw_curve_points_zoom(img, curve, color=get_signal_color(), magnify=1):
     if curve_ops.is_empty_curve(curve): return
 

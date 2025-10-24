@@ -3,7 +3,10 @@ import numpy as np
 import curve_operations as curve_ops
 
 class CurveExtractor():
-    
+    """
+    Very simple class to extract curve from image
+    following thinned curve.
+    """
     def __init__(self):
         self.displacements = {
             0 : (-1, 0), 
@@ -32,15 +35,33 @@ class CurveExtractor():
         self.debugPrint = debugFlag
         
     def getNextPosition(self, directionCode, row, col):
-        displacement = self.displacements[directionCode]
-        return (row + displacement[0], col + displacement[1])
+        """
+        Moves current position by given direction code.
+        :param directionCode: direction code 0..7.
+        :param row: row of current position.
+        :param col: column of current position.
+        :return new position.
+        """
+        dy, dx = self.displacements[directionCode]
+        return (row + dy, col + dx)
 
     def getDirections(self, directionCode):
+        """
+        Returns the list of directions for given direction code.
+        Directions are selected in the way to keep given direction.
+        :param directionCode: direction code 0..7.
+        :return list of directions.
+        """
         if directionCode >= 0 and directionCode <= 7:
             return self.lookupTable[directionCode]
         return []
        
     def loadFromFile(self, path):
+        """
+        Returns cv2 image from file.
+        :param path: image file path.
+        :return image object.
+        """
         image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         if image is None:
             if self.debugPrint: print("CurveExtractor.loadFromFile failed for '", path, "'")
@@ -49,6 +70,14 @@ class CurveExtractor():
     # find and collect closed curve points on image
     # curve should be closed and without intersections
     def extract(self, image, signalColor):
+        """
+        Extracts closed curve from given image.
+        It is very primitive implementation of curve following on image.
+        There should be no fork points on curve.
+        :param image: image to extract curve from.
+        :param signalColor: color of curve points.
+        :return curve.
+        """
         if image is None:
             if self.debugPrint: print("CurveExtractor.extract no valid image is supplied.")
             return curve_ops.get_empty_curve()
@@ -100,27 +129,42 @@ class CurveExtractor():
         return np.array([x, y])
 
     def clearNeighborhood(self, image, x, y, w, h):
+        """
+        Fills rectangular neighborhood at given position with pixels of zero value.
+        :param image: image object.
+        :param x: x coordinate of position.
+        :param y: y coordinate of position.
+        :param w: width of neighborhood rectangle.
+        :param h: height of neighborhood rectangle.
+        """
         rows,cols = image.shape
         w1 = w // 2
         h1 = h // 2
         r1 = y - h1
         c1 = x - w1
         r = r1
-        for i in range(0, h):
+        for i in range(h):
             c = c1
-            for j in range(0, w):
+            for j in range(w):
                 if r>=0 and r<rows and c>=0 and c<cols:
                     image[r+i, c+j] = 0
 
 
     # move along the curve and clear curve pixels on image
     def clearByCurve(self, image, curve, w, h):
+        """
+        Fills rectangular neighborhood at each point of given curve with pixels of zero value.
+        :param image: image object.
+        :param curve: curve points.
+        :param w: width of neighborhood rectangle.
+        :param h: height of neighborhood rectangle.
+        """
         if image is None:
             if self.debugPrint: print("CurveExtractor.extract no valid image")
             return
         
         rows,cols = image.shape[:2]
-        for i in range(0, len(curve)):
+        for i in range(len(curve)):
             self.clearNeighborhood(image, curve[0][i], curve[1][i], w, h)
             
             

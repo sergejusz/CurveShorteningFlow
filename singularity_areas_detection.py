@@ -74,7 +74,7 @@ def binarize(values):
     tmp = [0.0]*len(values)
     for pos in positions:
         tmp[pos] = abs_values[pos]
-    tmp2 = listops.med_filter_wrapped(tmp, 5, 100)
+    tmp2 = listops.med_filter_circular_list(tmp, 5, 100)
     return tmp2
 
 
