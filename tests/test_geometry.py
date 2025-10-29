@@ -52,3 +52,8 @@ def test_get_convex_curve_square():
     assert geom.get_convex_curve_square(np.array([[0, 1, 1, 0], [0, 0, 10, 10]])) == approx(10.0)
     radius1 = 10.0
     assert geom.get_convex_curve_square(curve_ops.get_circle(0.0, 0.0, radius1, 200)) == approx(np.pi * radius1 * radius1, rel=0.001)
+
+def test_rotate_curve():
+    #rectangle
+    assert geom.rotate_curve(np.array([[2, -2, -2, 2],[1, 1, -1, -1]]), np.pi * 0.5) == approx(np.array([[1, 1, -1, -1],[-2, 2, 2, -2]]))
+    assert geom.rotate_curve(np.array([[3, -1, -1, 3],[2, 2, 0, 0]]), np.pi * 0.5) == approx(np.array([[2, 2, 0, 0],[-1, 3, 3, -1]]))

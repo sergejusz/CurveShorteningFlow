@@ -7,55 +7,112 @@ import list_operations as list_ops
 import curve_operations as curve_ops
 
 
-def get_curvature(curve, w=5, po=2):
+#pylint: disable=line-too-long
+def get_curvature(curve : np.ndarray, w : int=5, po : int=2) -> np.ndarray :
+    """
+    Calculates plane curve curvature.
+    :param curve: input plane curve.
+    :param w:  window size to calculate derivatives (Default value = 5)
+    :param po:  polynomial order to calculate derivatives (Default value = 2)
+    :return curvature array at each point of curve.
+    """
     der1 = signal.savgol_filter(curve, window_length=w, polyorder=po, deriv=1, mode="wrap")
     der2 = signal.savgol_filter(curve, window_length=w, polyorder=po, deriv=2, mode="wrap")
     return np.divide(np.subtract(np.multiply(der2[1], der1[0]), np.multiply(der2[0], der1[1])),
                      np.power(np.hypot(der1[0], der1[1]), 3))
 
 
-def get_tangent_field(curve, w=5, po=1):
+def get_tangent_field(curve : np.ndarray, w : int=3, po : int=1) -> np.ndarray :
+    """
+    Returns array of tangent vectors to curve at each point.
+    :param curve: plane curve
+    :param w:  window size to calculate derivatives (Default value = 3)
+    :param po:  polynomial order to calculate derivatives (Default value = 1)
+    :return array of tangent vectors.
+    """
     return signal.savgol_filter(curve, window_length=w, polyorder=po, deriv=1, mode="wrap")
 
 
-def get_normal_field(curve, w=3, po=1):
+def get_normal_field(curve : np.ndarray, w: int=3, po: int=1) -> np.ndarray :
+    """
+    Returns array of normal vectors to curve at each point.
+    :param curve: plane curve
+    :param w:  window size to calculate derivatives (Default value = 3)
+    :param po:  polynomial order to calculate derivatives (Default value = 1)
+    :return array of normal vectors.
+    """
     der1 = get_tangent_field(curve, w, po)
     return np.array([der1[1], -der1[0]])
 
 
-def get_normal_unit_field(curve, w=3, po=1):
+def get_normal_unit_field(curve : np.ndarray, w : int=3, po : int=1) -> np.ndarray :
+    """
+
+    :param curve: 
+    :param w:  (Default value = 3)
+    :param po:  (Default value = 1)
+
+    """
     return normalize(get_normal_field(curve, w, po))
 
 
-def normalize(vectors):
+def normalize(vectors : np.ndarray) -> np.ndarray:
+    """
+    Normalizes array of vectors (length=1).
+    :param vectors: 
+    :return normalized vectors
+    """
     h = np.hypot(vectors[0], vectors[1])
     return np.divide(vectors, np.add(h, np.fabs(np.subtract(np.sign(h), 1.))))
 
 
-def smoothen_curve(curve, w=3, po=2, iter=1):
-    if iter == 0:
+def smoothen_curve(curve : np.ndarray, w : int=3, po : int=2, iterations : int=1) -> np.ndarray:
+    """
+    Iterative smoothing of plane curve using Savitzky-Golay filter.
+    :param curve: plane curve.
+    :param w:  (Default value = 3)
+    :param po:  (Default value = 2)
+    :param iterations:  (Default value = 1)
+    :return smoothed curve.
+    """
+    if iterations == 0:
         return curve
-    for i in range(0, iter):
+    for _ in range(iterations):
         curve = signal.savgol_filter(curve, window_length=w, polyorder=po, mode="wrap")
     return curve
 
 
-def smoothen_with_compensation_curve(curve, w_l=3, p_o=2, iter=1):
+def smoothen_with_compensation_curve(curve : np.ndarray, w : int=3, po : int=2, iterations : int=1) -> np.ndarray:
+    """
+    Smoothing of plane curve with size compensation.
+    Since smoothing shrinks curve homothety transformation is used
+    to keep average distance from curve points to center of curve.
+    :param curve: plane curve.
+    :param w:  window size for smoothing (Default value = 3)
+    :param po:  polynomial order for smoothing (Default value = 2)
+    :param iterations:  number of smoothing iterations to apply to curve (Default value = 1)
+    :return smoothed curve.
+    """
     # get data that we need for compensation of shrinking effect of smoothing
     # for that we use average distance from curve points to the center of a curve
     cx, cy = get_curve_center(curve)
     r0 = get_mean_distances_to_point(cx, cy, curve)
-    s0 = get_convex_curve_square(curve)
 
     #perform smoothing of curve using Savitzky-Golay
-    curve = smoothen_curve(curve, w_l, p_o, iter)
+    curve = smoothen_curve(curve, w, po, iterations)
     # we use homothety transformation to compensate that
     # curve slightly shrinks after smoothing
     r1 = get_mean_distances_to_point(cx, cy, curve)
     return homothety_transform(curve, cx, cy, r0 / r1)
 
-def shift_curve(curve, index):
-    n = curve.shape[1:][0]
+def shift_curve(curve : np.ndarray, index : int) -> np.ndarray:
+    """
+    Changes starting point of curve.
+    :param curve: plane curve
+    :param index: position pointing to new curve beginning.
+    :return curve
+    """
+    n = curve_ops.get_curve_size(curve)
     if n == 0:
         return curve_ops.get_empty_curve()
     idx1 = [(i + index) % n for i in range(0, n)]
@@ -63,78 +120,179 @@ def shift_curve(curve, index):
     return np.take(curve, [idx1, idx2])
 
 
-def translate(curve, x, y):
+def translate(curve : np.ndarray, x : float, y : float) -> np.ndarray:
+    """
+    Translates the whole curve along vector (x,y)
+    :param curve: curve data.
+    :param x: x-coordinate of translation vector.
+    :param y: y-coordinate of translation vector.
+    :return Translated curve.
+    """
     return np.add(curve, ([x], [y]))
 
 
-def move_curve_center(curve, x, y):
+def move_curve_center(curve : np.ndarray, x : float, y : float) -> np.ndarray:
+    """
+    Moves curve center to new location.
+    :param curve: curve data.
+    :param x: x-coordinate of new center.
+    :param y: y-coordinate of new center.
+    :return Curve moved to new center.
+    """
     [cx, cy] = get_curve_center(curve)
     return translate(curve, x - cx, y - cy)
 
 
-def get_curve_center(curve):
-    return np.divide(np.sum(curve, axis=1), curve.shape[1:][0])
+def get_curve_center(curve : np.ndarray) -> np.ndarray:
+    """
+    Returns curve center.
+    :param curve: plane curve.
+    :return center of given curve.
+    """
+    return np.divide(np.sum(curve, axis=1), curve_ops.get_curve_size(curve))
+
+def rotate_curve(curve : np.ndarray, fi : float) -> np.ndarray:
+    """
+    Rotates curve around its center for given angle in radians.
+    :param curve: curve array
+    :param fi: angle value in radians
+    :return curve rotated by given fi.
+    """
+    [cx, cy] = get_curve_center(curve)
+    cosfi = math.cos(fi)
+    sinfi = math.sin(fi)
+    return translate(np.dot(np.array([[cosfi, sinfi], [-sinfi, cosfi]]), translate(curve, -cx, -cy)), cx, cy)
 
 
-def get_distances_to_point(x, y, curve):
+def get_distances_to_point(x : float, y : float, curve  : np.ndarray) -> np.ndarray:
+    """
+    Calculates array of distance from given points to each point of curve.
+    :param x: x-coordinate of point to get distances to.
+    :param y: y-coordinate of point to get distances to
+    :param curve: plane curve.
+    :return distances to point.
+    """
     return np.hypot(np.subtract(curve[0], x), np.subtract(curve[1], y))
 
 
-def get_sum_distances_to_point(x, y, curve):
+def get_sum_distances_to_point(x : float, y : float, curve : np.ndarray) -> float:
+    """
+    Calculates sum of distances from given point to each point of curve.
+    :param x: x-coordinate of given point
+    :param y: y-coordinate of given point
+    :param curve: plane curve
+    :return sum of distances to point.
+    """
     return np.sum(get_distances_to_point(x, y, curve))
 
 
-def get_mean_distances_to_point(x, y, curve):
-    if curve_ops.is_empty_curve(curve): return 0
+def get_mean_distances_to_point(x : float, y : float, curve : np.ndarray) -> np.float64:
+    """
+    Calculates mean distance from given point to each point of curve.
+    :param x: x-coordinate of given point
+    :param y: y-coordinate of given point
+    :param curve: plane curve
+    :return mean distance from curve to point.
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0.0
     return get_sum_distances_to_point(x, y, curve) / curve_ops.get_curve_size(curve)
 
 
-def homothety_transform(curve, x, y, alpha):
+def homothety_transform(curve : np.ndarray, x : float, y : float, alpha : float) -> np.ndarray:
+    """
+    Applies homothety transformation with center (x,y) and coefficient alpha to given curve.
+    :param curve: plane curve
+    :param x: x-coordinate of homothety center
+    :param y: y-coordinate of homothety center
+    :param alpha: amplifying coefficient
+    :return curve transformed.
+    """
     return np.add(np.multiply(np.subtract(curve, ([x], [y])), alpha), ([x], [y]))
 
 
-def get_curve_length(curve):
-    if curve_ops.is_empty_curve(curve): return 0
+def get_curve_length(curve : np.ndarray) -> float:
+    """
+    Curve length calculation
+    :param curve: plane curve
+    :return length of curve.
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0.0
     l = np.sum(np.hypot(np.subtract(curve[0][1:], curve[0][:-1]), np.subtract(curve[1][1:], curve[1][:-1])))
     return l + math.hypot(curve[0][0] - curve[0][-1], curve[1][0] - curve[1][-1])
 
 
-def get_curve_steps(curve):
+def get_curve_steps(curve : np.ndarray) -> np.ndarray:
+    """
+    Returns array of curve segments lengths.
+    :param curve: plane curve.
+    :return array of curve segments lengths.
+    """
     return np.append(np.hypot(np.subtract(curve[0][1:], curve[0][:-1]), np.subtract(curve[1][1:], curve[1][:-1])),
                      math.hypot(curve[0][0] - curve[0][-1], curve[1][0] - curve[1][-1]))
 
 
-def get_curve_length_list(curve):
+def get_curve_length_list(curve : np.ndarray) -> np.ndarray:
+    """
+    Returns list of curve segments cumulative lengths.
+    The last element of output array corresponds to the length of whole curve.
+    :param curve: plane curve
+    :return array of lengths.
+    """
     return np.cumsum(np.append([0.0], get_curve_steps(curve)))
 
 
-def get_curve_length_from_list(curve_length_list):
+def get_curve_length_from_list(curve_length_list: np.ndarray) -> float:
+    """
+    Retrieves curve length from list of cumulative lengths.
+    :param curve_length_list: list of cumulative lengths.
+    :return curve length.
+    """
     if len(curve_length_list) == 0:
         return 0.0
     return curve_length_list[-1]
 
 
-def get_curve_steps_from_list(curve_length_list):
+def get_curve_steps_from_list(curve_length_list : np.ndarray) -> np.ndarray:
+    """
+    Creates list of curve segment lengths from list of cumulative lengths.
+    :param curve_length_list: list of cumulative lengths
+    :return: list of curve segment lengths.
+    """
     return np.subtract(curve_length_list[1:], curve_length_list[:-1])
 
 
-def get_part_curve_length_from_list(curve_length_list, i, j):
+def get_part_curve_length_from_list(curve_length_list : np.ndarray, i : int, j : int) -> float:
+    """
+    Returns list of curve between two points given by there indexes.
+    :param curve_length_list: list of cumulative lengths
+    :param i: index of first point.
+    :param j: index of second point.
+    :return length of curve part.
+    """
     n = len(curve_length_list)
-    if n <= 2: return 0
-    if i == j: return 0
-    if i >= n: return 0
+    if n <= 2:
+        return 0
+    if i == j:
+        return 0
+    if i >= n:
+        return 0
 
     if j < i:
         print("get_part_curve_length len=", n, " i=", i, " j=", j)
         return curve_length_list[-1] - curve_length_list[i] + curve_length_list[j % (n - 1)] - curve_length_list[0]
-
     return curve_length_list[j] - curve_length_list[i]
 
 
 # groups is a list of tuples that contain i1 and i2 - first and last index of point in curve
 def get_excl_curve_length_from_list(curve_length_list, groups):
-    n = len(curve_length_list)
+    """
 
+    :param curve_length_list: 
+    :param groups: 
+
+    """
     l = get_curve_length_from_list(curve_length_list)
     if len(groups) == 0:
         return l
@@ -146,14 +304,23 @@ def get_excl_curve_length_from_list(curve_length_list, groups):
 
 
 def get_part_curve_length(curve, i, j):
-    if curve_ops.is_empty_curve(curve): return 0
+    """
+
+    :param curve: 
+    :param i: 
+    :param j: 
+
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0
     n = curve_ops.get_curve_size(curve)
-    if i == j: return 0
+    if i == j:
+        return 0
 
     if j < i:
         print("get_part_curve_length len=", n, " i=", i, " j=", j)
 
-    l = 0;
+    l = 0
     x1 = curve[0][i % n]
     y1 = curve[1][i % n]
     for k in range(i + 1, j + 1):
@@ -166,8 +333,14 @@ def get_part_curve_length(curve, i, j):
 
 
 def get_excl_curve_length(curve, groups):
-    if curve_ops.is_empty_curve(curve): return 0
-    n = curve_ops.get_curve_size(curve)
+    """
+
+    :param curve: 
+    :param groups: 
+
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0
 
     m = len(groups)
     l = get_curve_length(curve)
@@ -180,7 +353,12 @@ def get_excl_curve_length(curve, groups):
     return l - s
 
 # returns square of convex figure dividing it with triangles
-def get_convex_curve_square(curve):
+def get_convex_curve_square(curve: np.ndarray) -> float:
+    """
+    Calculates square of convex curve.
+    :param curve: convex plane curve
+    :return square of interior of given curve.
+    """
     [cx, cy] = get_curve_center(curve)
 
     d = get_distances_to_point(cx, cy, curve)
@@ -188,30 +366,55 @@ def get_convex_curve_square(curve):
     p = np.multiply(np.add(np.add(d, np.roll(d, -1)), s), 0.5)
     return np.sum(np.sqrt(np.multiply(np.multiply(p, np.subtract(p, d)), np.multiply(np.subtract(p, s), np.subtract(p, np.roll(d, -1))))))
 
-def get_curvature_over_curve(curve, curvature):
-    if curve_ops.is_empty_curve(curve): return 0.0
+def get_curvature_over_curve(curve : np.ndarray, curvature : np.ndarray) -> float:
+    """
+    Calculates integral sum of curvature along curve.
+    :param curve: plane curve.
+    :param curvature: curvature array (curvature values for each curve point).
+    :return integral sum of curvature along curve.
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0.0
     return np.sum(np.multiply(get_curve_steps(curve), curvature))
 
 
-def get_horizontal_amplitude(curve):
-    if curve_ops.is_empty_curve(curve): return 0.0
+def get_horizontal_amplitude(curve : np.ndarray) -> float:
+    """
+    Calculates horizontal amplitude of curve (max-min along x-axis).
+    :param curve: plane curve.
+    :return horizontal amplitude of curve.
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0.0
     return np.max(curve, axis=1)[0] - np.min(curve, axis=1)[0]
 
 
-def get_vertical_amplitude(curve):
-    if curve_ops.is_empty_curve(curve): return 0.0
+def get_vertical_amplitude(curve: np.ndarray) -> float:
+    """
+    Calculates vertical amplitude of curve (max-min along x-axis).
+    :param curve: plane curve.
+    :return vertical amplitude of curve.
+    """
+    if curve_ops.is_empty_curve(curve):
+        return 0.0
     return np.max(curve, axis=1)[1] - np.min(curve, axis=1)[1]
 
-def get_curve_amplitude(curve):
+def get_curve_amplitude(curve : np.ndarray) -> [float, float] :
+    """
+    Calculates horizontal and vertical amplitudes of curve.
+    :param curve: plane curve.
+    :return list of amplitudes
+    """
     return [get_horizontal_amplitude(curve), get_vertical_amplitude(curve)]
 
-# very primitive estimation of radius if curve is circle
-def get_radius_estimation(curve):
-    return (get_horizontal_amplitude(curve) + get_vertical_amplitude(curve)) * 0.25
-
-
-def is_circle(curve):
-    if curve_ops.is_empty_curve(curve): return False
+def is_circle(curve : np.ndarray) -> bool :
+    """
+    Checks if the curve is circle.
+    :param curve: plane curve.
+    :return:  True if curve is similar to circle, False otherwise.
+    """
+    if curve_ops.is_empty_curve(curve):
+        return False
     [cx, cy] = get_curve_center(curve)
     distances = get_distances_to_point(cx, cy, curve)
     radius_estimated = list_ops.median_value(distances)
@@ -223,8 +426,21 @@ def is_circle(curve):
     return 100.0 * (math.fabs(radius_estimated - radius) / radius_estimated) <= threshold
 
 
-def resample_by_lsq(curve, w=7, polyorder=2, n=-1):
-    if curve_ops.is_empty_curve(curve): return curve_ops.get_empty_curve()
+def resample_by_lsq(curve : np.ndarray, w : int=7, po : int=2, n : int=-1) -> np.ndarray:
+    """
+    Curve is resampled using arclength parameter.
+    At every new sample curve point is evaluated using LSQ taking neighbor points.
+    This function is used when large variance appears in curve segments length:
+    Some segments are shor and some are long.
+    Segments here - straight segments between two consecutive points of curve.
+    :param curve: plane curve.
+    :param w:  window (neighborhood) size (Default value = 7)
+    :param po: polynomial order used for approximation (Default value = 2)
+    :param n: number of points in output curve (Default value = -1)
+    :return curve
+    """
+    if curve_ops.is_empty_curve(curve):
+        return curve_ops.get_empty_curve()
     nc = curve_ops.get_curve_size(curve)
     m = n if n != -1 else nc
     x_vec = []
@@ -242,32 +458,41 @@ def resample_by_lsq(curve, w=7, polyorder=2, n=-1):
         else:
             while i > 0 and i < nc and not (sk <= sp[i] and sk > sp[i - 1]):
                 i += 1
-            if i == nc:
-                if sk > sp[nc - 1] and sk <= s:
-                    i = nc
+            if (i == nc) and (sk > sp[nc - 1] and sk <= s):
+                i = nc
         t = []
         x = []
         y = []
         s0 = 0
         for j in range(i - w2, i + w2 + 1):
             l = j if j < 0 else j % nc
-            if j > i - w2 and s0 <= 0:
-                if t[j - i + w2 - 1] > sp[l]: s0 = s
+            if (j > i - w2 and s0 <= 0) and (t[j - i + w2 - 1] > sp[l]):
+                s0 = s
             t.append(sp[l] + s0)
             x.append(curve[0][l])
             y.append(curve[1][l])
-        if sk < t[0]: sk += s0
-        p1 = poly.polyfit(t, x, polyorder)
+        if sk < t[0]:
+            sk += s0
+        p1 = poly.polyfit(t, x, po)
         x1 = poly.polyval(sk, p1)
-        p2 = poly.polyfit(t, y, polyorder)
+        p2 = poly.polyfit(t, y, po)
         y1 = poly.polyval(sk, p2)
         x_vec.append(x1)
         y_vec.append(y1)
-        if i == 0: i = 1
+        if i == 0:
+            i = 1
     return np.array([x_vec, y_vec])
 
 
-def resample_by_interpolation(curve, n=-1):
+def resample_by_interpolation(curve : np.ndarray, n : int=-1) -> np.ndarray:
+    """
+    Curve is resampled using arclength parameter (s).
+    To get point (x,y) value for given parameter value s interpolation is used.
+    :param curve: plane curve
+    :param n: number of points in output curve (Default value = -1)
+            if n == -1 number of points for output curve doesn't change.
+    :return curve: output curve.
+    """
     s = get_curve_length(curve)
     nc = curve_ops.get_curve_size(curve)
     m = n if n > 0 else nc
@@ -277,6 +502,4 @@ def resample_by_interpolation(curve, n=-1):
     fy = interpolate.interp1d(length_list, np.append(curve, [[curve[0][0]], [curve[1][0]]], axis=1)[1], 'cubic')
     # uniform discretization
     t = np.linspace(0.0, s, m, endpoint=False)
-    x = fx(t)
-    y = fy(t)
     return np.array([fx(t), fy(t)])
