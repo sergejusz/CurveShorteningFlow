@@ -2,6 +2,7 @@ import math
 import numpy as np
 from scipy import signal
 from scipy import interpolate
+from scipy.spatial import ConvexHull
 from numpy.polynomial import polynomial as poly
 import list_operations as list_ops
 import curve_operations as curve_ops
@@ -115,8 +116,8 @@ def shift_curve(curve : np.ndarray, index : int) -> np.ndarray:
     n = curve_ops.get_curve_size(curve)
     if n == 0:
         return curve_ops.get_empty_curve()
-    idx1 = [(i + index) % n for i in range(0, n)]
-    idx2 = [n + (i + index) % n for i in range(0, n)]
+    idx1 = [(i + index) % n for i in range(n)]
+    idx2 = [n + (i + index) % n for i in range(n)]
     return np.take(curve, [idx1, idx2])
 
 
@@ -399,13 +400,101 @@ def get_vertical_amplitude(curve: np.ndarray) -> float:
         return 0.0
     return np.max(curve, axis=1)[1] - np.min(curve, axis=1)[1]
 
-def get_curve_amplitude(curve : np.ndarray) -> [float, float] :
+def get_curve_amplitude2(curve : np.ndarray) -> [float, float] :
     """
     Calculates horizontal and vertical amplitudes of curve.
     :param curve: plane curve.
     :return list of amplitudes
     """
     return [get_horizontal_amplitude(curve), get_vertical_amplitude(curve)]
+
+def get_curve_amplitude(curve : np.ndarray) -> float :
+    """
+    Calculates amplitude (linear size) of curve.
+    Calculates longest regression line, approximating curve.
+    :param curve: plane curve.
+    :return list of amplitudes
+    """
+    return [get_horizontal_amplitude(curve), get_vertical_amplitude(curve)]
+
+
+def get_curve_linear_size(curve):
+    """
+    Returns linear size of curve. Uses linear regression to get straight line that
+    approximates points of curve. Then finds points where regression line intersects
+    curve and returns length of segment. It could be good and not 'computing heavy'
+    approximation of curve diameter.
+    :param curve: plane curve.
+    :return linear size of curve or -1 for failure.
+    """
+
+    convex_curve = get_curve_convex_hull(curve)
+
+    ampl_x = get_horizontal_amplitude(convex_curve)
+    ampl_y = get_vertical_amplitude(convex_curve)
+
+    reversed = False
+    if ampl_y > ampl_x:
+        x = convex_curve[1]
+        y = convex_curve[0]
+        reversed = True
+    else:
+        x = convex_curve[0]
+        y = convex_curve[1]
+
+    z = np.polyfit(x, y, 1)
+    polynom = np.poly1d(z)
+
+    points = []
+    v = np.subtract(y, polynom(x))
+    for i in range(1, len(v)):
+        if v[i - 1] * v[i] <= 0.0:
+            points.append([(x[i - 1] + x[i]) * 0.5, (y[i - 1] + y[i]) * 0.5])
+
+    if len(points) == 0:
+        return -1.0
+
+    if len(points) == 1:
+        points.append([x[-1], y[-1]])
+
+    segment_length = math.hypot(points[0][1] - points[1][1], points[0][0] - points[1][0])
+    return segment_length
+
+
+def get_curve_diameter(curve : np.ndarray) -> float :
+    """
+    Returns max. distance between two points of curve.
+    :param curve: plane curve.
+    :return max.distance between two points of curve.
+    """
+    # for curves with a big number of points calculation of diameter
+    # like max(distance(Pi, Pj)) for all pairs i < j could be
+    # very heavy, so apply this formula for convex hull of given curve.
+    # Convex hull will significantly reduce number of points and
+    # keep max distance.
+    convex_curve = get_curve_convex_hull(curve)
+    max_distance = 0.0
+    n = curve_ops.get_curve_size(convex_curve)
+    for i in range(n):
+        x = convex_curve[0][i]
+        y = convex_curve[1][i]
+        for j in range(i+1, n):
+            d = math.hypot(x - convex_curve[0][j], y - convex_curve[1][j])
+            max_distance = max(d, max_distance)
+    return max_distance
+
+
+def get_curve_convex_hull(curve : np.ndarray) -> np.ndarray:
+    """
+    Returns convex hull of curve points.
+    :param curve: plane curve.
+    :return:  convex figure made from given curve.
+    """
+    if curve_ops.get_curve_size(curve) > 0:
+        hull = ConvexHull(np.permute_dims(curve))
+        return np.take(curve, hull.vertices, axis=1)
+    return curve
+
 
 def is_circle(curve : np.ndarray) -> bool :
     """

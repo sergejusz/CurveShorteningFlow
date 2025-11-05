@@ -234,9 +234,8 @@ class CurveShortener():
         """
         a = (2.0*np.pi)/curve_length if self.preserve_area else 0.0
 
-        is_circle = geom.is_circle(curve)
-        if is_circle != self.is_circle:
-            self.is_circle = is_circle
+        if not self.is_circle:
+            self.is_circle = geom.is_circle(curve)
 
         return np.subtract(curve, np.multiply(geom.get_normal_unit_field(curve), np.subtract(curvature, a)))
 

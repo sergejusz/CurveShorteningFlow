@@ -11,7 +11,7 @@ import curve_operations as curve_ops
 # pylint: disable=line-too-long
 
 
-def get_sample_skip_count_for_vector(curve_length, num_samples):
+def get_sample_skip_count_for_vector(curve_length : float, num_samples : int) -> int :
     """
     Returns number of samples to skip when drawing normal vectors.
     :param curve_length: curve length.
@@ -30,7 +30,7 @@ def get_sample_skip_count_for_vector(curve_length, num_samples):
         return 2
     return 1
 
-def get_vector_scaling_factor(curve):
+def get_vector_scaling_factor(curve : np.ndarray) -> float:
     """
     Calculates scaling factor to display normal vectors.
     :param curve: curve points.
@@ -47,6 +47,16 @@ def get_vector_scaling_factor(curve):
         return 0.3*ampl
     return 3.0
 
+def estimate_curve_diameter(curve: np.ndarray, curve_length: float, is_circle_shape: bool) -> float:
+    """
+    Returns diameter of curve.
+    :param curve: curve data.
+    :param curve_length: curve length.
+    :param is_circle_shape: True if curve is circle.
+    :return diameter of curve.
+    """
+    # is_circle_shape is not used for now
+    return geom.get_curve_linear_size(curve)
 
 # callback function returns True to terminate flow, False otherwise
 def vector_view_callback(curve, curvature, curve_length, iteration, is_circle_shape, obj):
@@ -85,9 +95,10 @@ def vector_view_callback(curve, curvature, curve_length, iteration, is_circle_sh
                 cv2.imwrite(file_path, img)
 
         max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
-        return (max_iterations > 0 and iteration == max_iterations) or (
-                    max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
+        return ((max_iterations > 0 and iteration == max_iterations) or
+                estimate_curve_diameter(curve, curve_length, is_circle_shape) < minimal_diameter)
     return True
 
 
@@ -118,9 +129,10 @@ def contour_view_callback(curve, curvature, curve_length, iteration, is_circle_s
                 cv2.imwrite(file_path, img)
 
         max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
-        return (max_iterations > 0 and iteration == max_iterations) or (
-                    max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
+        return ((max_iterations > 0 and iteration == max_iterations) or
+                estimate_curve_diameter(curve, curve_length, is_circle_shape) < minimal_diameter)
     return True
 
 # pylint: disable=dangerous-default-value
@@ -164,10 +176,10 @@ def history_view_callback(curve, curvature, curve_length, iteration, is_circle_s
                 cv2.imwrite(file_path, img)
 
         max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
-        return (max_iterations > 0 and iteration == max_iterations) or (
-                    max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
-
+        return ((max_iterations > 0 and iteration == max_iterations) or
+                estimate_curve_diameter(curve, curve_length, is_circle_shape) < minimal_diameter)
     return True
 # pylint: enable=dangerous-default-value
 
@@ -203,8 +215,9 @@ def solid_view_callback(curve, curvature, curve_length, iteration, is_circle_sha
                 cv2.imwrite(file_path, img)
 
         max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
-        return (max_iterations > 0 and iteration == max_iterations) or (
-                    max(geom.get_horizontal_amplitude(curve), geom.get_vertical_amplitude(curve)) < 10)
+        return ((max_iterations > 0 and iteration == max_iterations) or
+                estimate_curve_diameter(curve, curve_length, is_circle_shape) < minimal_diameter)
 
     return True

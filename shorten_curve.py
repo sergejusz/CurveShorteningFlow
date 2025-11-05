@@ -36,9 +36,8 @@ def parse_command_line():
     parser.add_argument('dest_folder', help='Folder path to store output images')
     parser.add_argument('-i', '--iterations', type=int, required=False, default=100, help='max number of iterations')
     parser.add_argument('-p', '--preserve_area', required=False, action='store_true', help='preserve area')
-    parser.add_argument('-s', '--save_every_n', type=int, required=False, default=5,
-        help='How often image with curve is saved. Default is 5 - every 5th image is saved')
-    parser.add_argument('--accumulate', type=int, required=False, default=20, help='number of curves in history buffer. Default 20.')
+    parser.add_argument('-s', '--save_every_n', type=int, required=False, default=1,
+        help='How often image with curve is saved. Default is 1 - every image is saved')
     parser.add_argument('-v', '--view', required=False, default='contour', choices=['contour', 'solid', 'vector', 'history'],
         help='View style of curves under flow')
     parser.add_argument('-m', '--median_filter', type=int, required=False, default=0, choices=[3, 5, 7, 9],
@@ -47,7 +46,7 @@ def parse_command_line():
         help='sets number of curves to apply shortening flow')
     parser.add_argument('-c', '--color_palette', type=str, required=False, default='blue',
                         choices=['blue', 'green', 'red'], help='sets coloring for visualization of filled curves')
-    parser.add_argument('--num_points', type=int, required=False, default=0, help='number of points for curve')
+    parser.add_argument('--num_points', type=int, required=False, default=0, help='number of points for curve (used only for figures)')
     parser.add_argument('--save_info', required=False, action='store_true', help='save additional information to files')
     parser.add_argument('--radius', type=int, required=False, default=0, help='circle radius')
     parser.add_argument('--radius_x', type=int, required=False, default=0, help='ellipse radius for x axis')
@@ -60,6 +59,7 @@ def parse_command_line():
     parser.add_argument('--side_y', type=int, required=False, default=0, help='side length for y axis')
     parser.add_argument('--height', type=int, required=False, default=0, help='image height to display curves')
     parser.add_argument('--width', type=int, required=False, default=0, help='image width to display curves')
+    parser.add_argument('--diameter', type=int, required=False, default=10, help='iterate till diameter of curve is larger')
     return parser.parse_args()
 
 def get_extension(file_path):
@@ -417,8 +417,8 @@ def main():
             cb.solid_view_callback if view_style == ViewStyle.SOLID else (cb.contour_view_callback if view_style == ViewStyle.CONTOUR
             else cb.history_view_callback))
         flow.setCallBack(callback_fcn,
-                         (height, width, args.dest_folder, args.iterations, args.save_every_n, background_color,
-                          curve_colors[i], history_colors))
+                         (height, width, args.dest_folder, args.iterations, args.diameter,
+                          args.save_every_n, background_color, curve_colors[i], history_colors))
         flow.run(curve)
         i += 1
 
