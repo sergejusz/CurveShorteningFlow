@@ -7,10 +7,11 @@ class CallbackArgs(IntEnum):
     COLS = 1
     PATH = 2
     MAXITERATIONS = 3
-    SAVETOFILECOUNTER = 4
-    BACKGROUNDCOLOR = 5
-    FOREGROUNDCOLOR = 6
-    HISTORYCOLORS = 7
+    DIAMETER = 4
+    SAVETOFILECOUNTER = 5
+    BACKGROUNDCOLOR = 6
+    FOREGROUNDCOLOR = 7
+    HISTORYCOLORS = 8
 
 class HistoryViewStyle(IntEnum):
     """ """

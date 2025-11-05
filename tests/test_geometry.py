@@ -57,3 +57,7 @@ def test_rotate_curve():
     #rectangle
     assert geom.rotate_curve(np.array([[2, -2, -2, 2],[1, 1, -1, -1]]), np.pi * 0.5) == approx(np.array([[1, 1, -1, -1],[-2, 2, 2, -2]]))
     assert geom.rotate_curve(np.array([[3, -1, -1, 3],[2, 2, 0, 0]]), np.pi * 0.5) == approx(np.array([[2, 2, 0, 0],[-1, 3, 3, -1]]))
+
+def test_get_curve_diameter():
+    assert approx(5.0) == geom.get_curve_diameter(np.array([[0, 1, 1, 2, 2, 3, 3, 2, 2, 1, 1, 0], [0, 0, 1, 1, 2, 2, 4, 4, 3, 3, 2, 2]]))
+    assert approx(math.sqrt(29.0)) == geom.get_curve_diameter(np.array([[0, 1, 1, 5, 5, 0], [0, 0, 1, 1, 2, 2]]))
