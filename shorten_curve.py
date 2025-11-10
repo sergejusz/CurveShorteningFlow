@@ -10,8 +10,6 @@ import CurveExtractor as ce
 import CurveShortener as cs
 import image_operations as img_ops
 import color_operations as color_ops
-import curve_operations as curve_ops
-import figure_curves as fig_curves
 import ColorInterpolator as ci
 from enums import HistoryViewStyle
 import callbacks as cb
@@ -214,8 +212,8 @@ def cmp_curve(curve1, curve2):
     :param curve2: 
     :return -1 if 1st curve is longer.
     """
-    l1 = curve_ops.get_curve_size(curve1)
-    l2 = curve_ops.get_curve_size(curve2)
+    l1 = geom.get_curve_size(curve1)
+    l2 = geom.get_curve_size(curve2)
     if l1 > l2:
         return -1
     if l1 < l2:
@@ -263,6 +261,71 @@ def get_curve_image_shape(args_width, args_height, curves):
 
     return (width, height, cx, cy)
 
+def get_circle_curve(arg_radius, arg_num_points):
+    """
+    Returns circle curve with given radius and number of points or empty curve.
+    :param arg_radius:circle radius.
+    :param arg_num_points:  number of points for curve specified by user.
+    If not specified then number of points is calculated using radius.
+    :return circle curve or empty curve.
+    """
+    if arg_radius == 0:
+        print("ERROR: radius for circle cannot be zero")
+        return geom.get_empty_curve()
+
+    num_points = arg_radius * 4 if arg_num_points == 0 else arg_num_points
+    return geom.get_circle(0, 0, arg_radius, num_points)
+
+def get_ellipse_curve(arg_radius_x, arg_radius_y, arg_num_points):
+    """
+    Returns ellipse curve with given radiuses and number of points or empty curve.
+    :param arg_radius_x: horizontal radius.
+    :param arg_radius_y: vertical radius.
+    :param arg_num_points:  number of points for curve specified by user.
+    If not specified then number of points is calculated using radiuses.
+    :return ellipse curve or empty curve.
+    """
+    if arg_radius_x == 0 or arg_radius_y == 0:
+        print("ERROR: radiuses for ellipse cannot be zero")
+        return geom.get_empty_curve()
+
+    if arg_num_points == 0:
+        num_points = (arg_radius_x + arg_radius_y) * 2
+    else:
+        num_points = arg_num_points
+    return geom.get_ellipse(0, 0, arg_radius_x, arg_radius_y, num_points)
+
+def get_paperclip_curve(arg_radius, arg_num_points):
+    """
+    Returns paperclip curve with given radius and number of points or empty curve.
+    :param arg_radius: radius.
+    :param arg_num_points:  number of points for curve specified by user.
+    If not specified then number of points is calculated using radius.
+    :return paperclip curve or empty curve.
+    """
+    if arg_radius == 0:
+        print("ERROR: radius for paperclip cannot be zero")
+        return geom.get_empty_curve()
+
+    num_points = arg_radius * 8 if arg_num_points == 0 else arg_num_points
+    return geom.get_paperclip(0, 0, arg_radius, num_points)
+
+
+def get_rectangle_curve(arg_side_x, arg_side_y, arg_num_points):
+    """
+    Returns rectangle curve with given sides and number of points or empty curve.
+    :param arg_side_x: horizontal side.
+    :param arg_side_y: vertical side.
+    :param arg_num_points:  number of points for curve specified by user.
+    If not specified then number of points is calculated using radius.
+    :return rectangular curve or empty curve.
+    """
+    if arg_side_x == 0 or arg_side_y == 0:
+        print("ERROR: rectangle sides cannot be zero")
+        return geom.get_empty_curve()
+
+    num_points = (arg_side_x + arg_side_y) * 2 if arg_num_points == 0 else arg_num_points
+    return geom.get_rectangle(0, 0, arg_side_x, arg_side_y, num_points)
 
 def get_figure_curve(args):
     """
@@ -271,19 +334,19 @@ def get_figure_curve(args):
     :return curve for specified figure (circle, ellipse, paperclip, rectangle).
     """
     if is_circle(args.image_path):
-        return fig_curves.get_circle_curve(args.radius, args.num_points)
+        return get_circle_curve(args.radius, args.num_points)
 
     if is_ellipse(args.image_path):
-        return  fig_curves.get_ellipse_curve(args.radius_x, args.radius_y, args.num_points)
+        return  get_ellipse_curve(args.radius_x, args.radius_y, args.num_points)
 
     if is_paperclip(args.image_path):
-        return fig_curves.get_paperclip_curve(args.radius, args.num_points)
+        return get_paperclip_curve(args.radius, args.num_points)
 
     if is_rectangle(args.image_path):
-        return fig_curves.get_rectangle_curve(args.side_x, args.side_y, args.num_points)
+        return get_rectangle_curve(args.side_x, args.side_y, args.num_points)
 
     print("Invalid figure specified '", args.image_path, "'")
-    return curve_ops.get_empty_curve()
+    return geom.get_empty_curve()
 
 
 #
@@ -339,7 +402,7 @@ def main():
         num_extracted = 0
         for i in range(0, args.number_curves):
             curve = extract_curve(thinned_img)
-            nc = curve_ops.get_curve_size(curve)
+            nc = geom.get_curve_size(curve)
             if nc > 0:
                 print("len=", nc)
                 curves.append(curve)
@@ -359,13 +422,13 @@ def main():
         # sort curves by length in ascending order
         curves = sorted(curves, key=cmp_to_key(cmp_curve), reverse = args.ascending)
         for curve in curves:
-            print("len=", curve_ops.get_curve_size(curve))
+            print("len=", geom.get_curve_size(curve))
 
         if args.curve_no > 0:
             if args.curve_no > len(curves):
                 print("Invalid number of curve=", args.curve_no, " - too big!")
                 sys.exit(1)
-            selected_curve = np.append(curve_ops.get_empty_curve(), curves[args.curve_no-1], axis=1)
+            selected_curve = np.append(geom.get_empty_curve(), curves[args.curve_no-1], axis=1)
             curves.clear()
             curves.append(selected_curve)
 

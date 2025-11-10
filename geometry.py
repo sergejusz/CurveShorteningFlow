@@ -5,10 +5,101 @@ from scipy import interpolate
 from scipy.spatial import ConvexHull
 from numpy.polynomial import polynomial as poly
 import list_operations as list_ops
-import curve_operations as curve_ops
-
 
 #pylint: disable=line-too-long
+
+def get_curve_size(curve : np.ndarray) -> int :
+    """
+    Returns number of points in curve.
+    :param curve: plane curve.
+    :return number of points in curve.
+    """
+    return curve.shape[1:][0]
+
+
+def is_empty_curve(curve : np.ndarray) -> bool:
+    """
+    Returns True if curve has no points.
+    :param curve: plane curve.
+    :return True if curve has no points, False otherwise.
+    """
+    return curve.size == 0
+
+
+def get_empty_curve() -> np.ndarray :
+    """
+    Returns empty curve.
+    :return empty curve.
+    """
+    return np.array([[], []])
+
+
+def get_ellipse(cx : float, cy : float, radiusx : float, radiusy : float, num_points: int) -> np.ndarray :
+    """
+    Returns ellipse curve with given parameters.
+    :param cx: x-coordinate of center of ellipse.
+    :param cy: y-coordinate of center of ellipse.
+    :param radiusx: horizontal radius of ellipse.
+    :param radiusy: vertical radius of ellipse.
+    :param num_points: number of points in ellipse.
+    :return ellipse curve.
+    """
+    t = np.linspace(0.0, 2.0*np.pi, num_points, endpoint=False)
+    return np.array([cx + radiusx*np.cos(t), cy + radiusy*np.sin(t)])
+
+def get_circle(cx : float, cy : float, radius : float, num_points : int) -> np.ndarray :
+    """
+    Returns circle curve with given parameters.
+    :param cx: x-coordinate of center of circle.
+    :param cy: y-coordinate of center of circle.
+    :param radius: radius of circle.
+    :param num_points: number of points in circle.
+    :return circle curve.
+    """
+    return get_ellipse(cx, cy, radius, radius, num_points)
+
+def get_paperclip(cx : float, cy : float, radius : float, num_points : int ) -> np.ndarray :
+    """
+    Returns paperclip shaped curve with given parameters.
+    :param cx: x-coordinate of center of curve.
+    :param cy: y-coordinate of center of curve.
+    :param radius: radius of circle that is part of paperclip curve.
+    :param num_points: number of points in curve.
+    :return paperclip shaped curve.
+    """
+    # number of points for circular areas
+    n1 = int((np.pi * num_points)/(3 + np.pi))
+    # number of points for straight sides
+    n2 = num_points - n1
+    t1 = np.linspace(1.5 * np.pi, 0.5 * np.pi, n1 // 2, endpoint=False)
+    z1 = np.array([radius * np.cos(t1), radius * np.sin(t1)])
+    z2 = np.array([np.linspace(0.0, 3.0*radius, n2 // 2, endpoint=False), np.full(n2 // 2, radius)])
+    t3 = np.linspace(2.5 * np.pi, 1.5 * np.pi, n1 - ( n1 // 2), endpoint=False)
+    z3 = np.array([3.0 * radius + radius * np.cos(t3), radius * np.sin(t3)])
+    z4 = np.array([np.linspace(3.0*radius, 0.0, n2 - (n2 // 2), endpoint=False), np.full(n2 - (n2 // 2), -radius)])
+    return np.add(np.append(np.append(np.append(z1, z2, axis=1), z3, axis=1), z4, axis=1), [[cx], [cy]])
+
+def get_rectangle(cx : float, cy : float, a : float, b : float, num_points : int) -> np.ndarray :
+    """
+    Returns rectangle shaped curve with given parameters.
+    :param cx: x-coordinate of center of curve.
+    :param cy: y-coordinate of center of curve.
+    :param a: horizontal side of rectangle.
+    :param b: vertical side of rectangle
+    :param num_points: number of points in curve.
+    :return rectangle shaped curve.
+    """
+    t = np.linspace(0.0, a + a + b + b, num_points, endpoint=False)
+    t1 = [_ for _ in t if _ < a]
+    p1 = np.array([t1, np.full(len(t1), 0.0)])
+    t2 = [_ - a for _ in t if _ >= a and _ < a + b]
+    p2 = np.array([np.full(len(t2), a), t2])
+    t3 = [a + a + b - _ for _ in t if _ >= a + b and _ < a + a + b]
+    p3 = np.array([t3, np.full(len(t3), b)])
+    t4 = [a + a + b + b - _ for _ in t if _ >= a + a + b]
+    p4 = np.array([np.full(len(t4), 0.0), t4])
+    return np.add(np.append(np.append(np.append(p1, p2, axis=1), p3, axis=1), p4, axis=1), [[cx], [cy]])
+
 def get_curvature(curve : np.ndarray, w : int=5, po : int=2) -> np.ndarray :
     """
     Calculates plane curve curvature.
@@ -113,9 +204,9 @@ def shift_curve(curve : np.ndarray, index : int) -> np.ndarray:
     :param index: position pointing to new curve beginning.
     :return curve
     """
-    n = curve_ops.get_curve_size(curve)
+    n = get_curve_size(curve)
     if n == 0:
-        return curve_ops.get_empty_curve()
+        return get_empty_curve()
     idx1 = [(i + index) % n for i in range(n)]
     idx2 = [n + (i + index) % n for i in range(n)]
     return np.take(curve, [idx1, idx2])
@@ -150,7 +241,7 @@ def get_curve_center(curve : np.ndarray) -> np.ndarray:
     :param curve: plane curve.
     :return center of given curve.
     """
-    return np.divide(np.sum(curve, axis=1), curve_ops.get_curve_size(curve))
+    return np.divide(np.sum(curve, axis=1), get_curve_size(curve))
 
 def rotate_curve(curve : np.ndarray, fi : float) -> np.ndarray:
     """
@@ -195,9 +286,9 @@ def get_mean_distances_to_point(x : float, y : float, curve : np.ndarray) -> np.
     :param curve: plane curve
     :return mean distance from curve to point.
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0.0
-    return get_sum_distances_to_point(x, y, curve) / curve_ops.get_curve_size(curve)
+    return get_sum_distances_to_point(x, y, curve) / get_curve_size(curve)
 
 
 def homothety_transform(curve : np.ndarray, x : float, y : float, alpha : float) -> np.ndarray:
@@ -218,7 +309,7 @@ def get_curve_length(curve : np.ndarray) -> float:
     :param curve: plane curve
     :return length of curve.
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0.0
     l = np.sum(np.hypot(np.subtract(curve[0][1:], curve[0][:-1]), np.subtract(curve[1][1:], curve[1][:-1])))
     return l + math.hypot(curve[0][0] - curve[0][-1], curve[1][0] - curve[1][-1])
@@ -312,9 +403,9 @@ def get_part_curve_length(curve, i, j):
     :param j: 
 
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0
-    n = curve_ops.get_curve_size(curve)
+    n = get_curve_size(curve)
     if i == j:
         return 0
 
@@ -340,7 +431,7 @@ def get_excl_curve_length(curve, groups):
     :param groups: 
 
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0
 
     m = len(groups)
@@ -374,7 +465,7 @@ def get_curvature_over_curve(curve : np.ndarray, curvature : np.ndarray) -> floa
     :param curvature: curvature array (curvature values for each curve point).
     :return integral sum of curvature along curve.
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0.0
     return np.sum(np.multiply(get_curve_steps(curve), curvature))
 
@@ -385,7 +476,7 @@ def get_horizontal_amplitude(curve : np.ndarray) -> float:
     :param curve: plane curve.
     :return horizontal amplitude of curve.
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0.0
     return np.max(curve, axis=1)[0] - np.min(curve, axis=1)[0]
 
@@ -396,7 +487,7 @@ def get_vertical_amplitude(curve: np.ndarray) -> float:
     :param curve: plane curve.
     :return vertical amplitude of curve.
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return 0.0
     return np.max(curve, axis=1)[1] - np.min(curve, axis=1)[1]
 
@@ -474,7 +565,7 @@ def get_curve_diameter(curve : np.ndarray) -> float :
     # keep max distance.
     convex_curve = get_curve_convex_hull(curve)
     max_distance = 0.0
-    n = curve_ops.get_curve_size(convex_curve)
+    n = get_curve_size(convex_curve)
     for i in range(n):
         x = convex_curve[0][i]
         y = convex_curve[1][i]
@@ -490,7 +581,7 @@ def get_curve_convex_hull(curve : np.ndarray) -> np.ndarray:
     :param curve: plane curve.
     :return:  convex figure made from given curve.
     """
-    if curve_ops.get_curve_size(curve) > 0:
+    if get_curve_size(curve) > 0:
         hull = ConvexHull(np.permute_dims(curve))
         return np.take(curve, hull.vertices, axis=1)
     return curve
@@ -502,7 +593,7 @@ def is_circle(curve : np.ndarray) -> bool :
     :param curve: plane curve.
     :return:  True if curve is similar to circle, False otherwise.
     """
-    if curve_ops.is_empty_curve(curve):
+    if is_empty_curve(curve):
         return False
     [cx, cy] = get_curve_center(curve)
     distances = get_distances_to_point(cx, cy, curve)
@@ -528,9 +619,9 @@ def resample_by_lsq(curve : np.ndarray, w : int=7, po : int=2, n : int=-1) -> np
     :param n: number of points in output curve (Default value = -1)
     :return curve
     """
-    if curve_ops.is_empty_curve(curve):
-        return curve_ops.get_empty_curve()
-    nc = curve_ops.get_curve_size(curve)
+    if is_empty_curve(curve):
+        return get_empty_curve()
+    nc = get_curve_size(curve)
     m = n if n != -1 else nc
     x_vec = []
     y_vec = []
@@ -583,7 +674,7 @@ def resample_by_interpolation(curve : np.ndarray, n : int=-1) -> np.ndarray:
     :return curve: output curve.
     """
     s = get_curve_length(curve)
-    nc = curve_ops.get_curve_size(curve)
+    nc = get_curve_size(curve)
     m = n if n > 0 else nc
     # current discretization
     length_list = get_curve_length_list(curve)

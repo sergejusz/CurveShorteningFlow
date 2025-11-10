@@ -5,7 +5,6 @@ from scipy import signal
 from scipy import interpolate
 import geometry as geom
 import image_operations
-import curve_operations as curve_ops
 import singularity_areas_detection as singular
 
 class CurveShortener():
@@ -81,7 +80,7 @@ class CurveShortener():
         :param curve: curve data.
         :return True if variance of lengths of curve segments is bigger than threshold.
         """
-        if curve_ops.get_curve_size(curve):
+        if geom.get_curve_size(curve):
             return False
         length_list = geom.get_curve_steps(curve)
         min_length = min(length_list)
@@ -119,7 +118,7 @@ class CurveShortener():
         for part in parts:
             length += geom.get_part_curve_length_from_list(curve_length_list, part[0], part[1])
             count += part[1] - part[0] + 1
-        return (curve_ops.get_curve_size(curve) - count)/(geom.get_curve_length_from_list(curve_length_list) - length)
+        return (geom.get_curve_size(curve) - count)/(geom.get_curve_length_from_list(curve_length_list) - length)
 
 
     def run(self, curve):
@@ -132,16 +131,16 @@ class CurveShortener():
         if curvature_integral < 0:
             curve = np.flip(curve, axis=1)
 
-        curve = geom.shift_curve(curve, curve_ops.get_curve_size(curve) // 2)
+        curve = geom.shift_curve(curve, geom.get_curve_size(curve) // 2)
         
         curve = geom.resample_by_lsq(curve)
         curvature_ratio_history = []
         arclen_history = []
         accumulated_curves = []
         # curve at previous step
-        prev_curve = curve_ops.get_empty_curve()
+        prev_curve = geom.get_empty_curve()
         # initial number of points per curve length
-        num_points_per_length = curve_ops.get_curve_size(curve)/geom.get_curve_length(curve)
+        num_points_per_length = geom.get_curve_size(curve)/geom.get_curve_length(curve)
         # variable to count number of iterations after downsampling
         counter = 0
         iteration = 0
@@ -162,7 +161,7 @@ class CurveShortener():
             # if number of iterations without downsampling is big enough
             if counter == self.max_iterations_without_downsampling:
                 new_num = int(num_points_per_length * curve_length)
-                if curve_ops.get_curve_size(curve) + 1 < new_num:
+                if geom.get_curve_size(curve) + 1 < new_num:
                     curve = geom.resample_by_interpolation(curve, n=new_num)
                     curve_length_array = geom.get_curve_length_list(curve)
                     curve_length = geom.get_curve_length_from_list(curve_length_array)
@@ -176,7 +175,7 @@ class CurveShortener():
                     curvature_ratio_history.append(min(curvature)/max_curv)
             
             # detect and handle singularities
-            if curve_ops.get_curve_size(prev_curve) > 0:
+            if geom.get_curve_size(prev_curve) > 0:
                 singular_groups = singular.detect(curvature)
                 if len(singular_groups) > 0:
                     if self.save_additional_info:
@@ -190,7 +189,7 @@ class CurveShortener():
                     
                     density_of_regular_part = self.get_density_for_regular_part(singular_groups, curve, curve_length_array)
                     
-                    new_num = int((density_of_regular_part*curve_ops.get_curve_size(curve))/density_of_singular_part)
+                    new_num = int((density_of_regular_part*geom.get_curve_size(curve))/density_of_singular_part)
                     # resample for new_num points
                     curve = geom.resample_by_interpolation(curve, n=new_num)
                     curve_length_array = geom.get_curve_length_list(curve)
@@ -211,7 +210,7 @@ class CurveShortener():
             curve = self.get_next_curve(curve, curvature, curve_length)
 
             #s1 = geom.get_convex_curve_square(curve)
-            #print(curve_ops.get_curve_size(curve), " --> ", curve_length)
+            #print(geom.get_curve_size(curve), " --> ", curve_length)
             #if s0 > s1:
             #    print("s0=", "{:.5f}".format(s0), " > s1=", "{:.5f}".format(s1), "s0=", (100.0*math.fabs(s0-s1))/s0 )
             #else:

@@ -4,7 +4,6 @@ import numpy as np
 from scipy import signal
 import geometry as geom
 import list_operations as list_ops
-import curve_operations as curve_ops
 import collections
 
 def get_signal_color():
@@ -25,12 +24,12 @@ def save_curve_to_image(curve):
     return img
 
 def draw_curve_points_zoom(img, curve, color=get_signal_color(), magnify=1):
-    if curve_ops.is_empty_curve(curve): return
+    if geom.is_empty_curve(curve): return
 
     rows, cols = img.shape[:2]
     [cx, cy] = geom.get_curve_center(curve)
     scaled_curve = np.add(np.astype(np.multiply(np.subtract(curve, [[cx], [cy]]), magnify), np.int32), [[cols // 2], [rows // 2]])
-    for i in range(0, curve_ops.get_curve_size(scaled_curve)):
+    for i in range(0, geom.get_curve_size(scaled_curve)):
         x = scaled_curve[0][i]
         y = scaled_curve[1][i]
         if x >=0 and x < cols and y >=0 and y < rows:
@@ -38,9 +37,9 @@ def draw_curve_points_zoom(img, curve, color=get_signal_color(), magnify=1):
 
 
 def draw_curve_points(img, curve, color=get_signal_color()):
-    if curve_ops.is_empty_curve(curve): return
+    if geom.is_empty_curve(curve): return
     rows, cols = img.shape[:2]
-    for i in range(0, curve_ops.get_curve_size(curve)):
+    for i in range(0, geom.get_curve_size(curve)):
         x = int(curve[0][i])
         y = int(curve[1][i])
         if x >=0 and x < cols and y >=0 and y < rows:
@@ -48,9 +47,9 @@ def draw_curve_points(img, curve, color=get_signal_color()):
 
                     
 def draw_curve_lines(img, curve, color=get_signal_color()):
-    if curve_ops.is_empty_curve(curve): return
+    if geom.is_empty_curve(curve): return
     rows, cols = img.shape[:2]
-    n = curve_ops.get_curve_size(curve)
+    n = geom.get_curve_size(curve)
     x1 = curve[0][0]
     y1 = curve[1][0]
     for i in range(1,n+1):
@@ -62,8 +61,8 @@ def draw_curve_lines(img, curve, color=get_signal_color()):
 
 
 def display_vector_field(img, curve, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20.0):
-    if curve_ops.is_empty_curve(curve): return
-    n = curve_ops.get_curve_size(curve)
+    if geom.is_empty_curve(curve): return
+    n = geom.get_curve_size(curve)
     for i in range(0, n, delta_n):
         x = curve[0][i]
         y = curve[1][i]
@@ -73,8 +72,8 @@ def display_vector_field(img, curve, vectorField, color=get_signal_color(), delt
 
         
 def display_shortening_field(img, curve, curvature, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20.0):
-    if curve_ops.is_empty_curve(curve): return
-    n = curve_ops.get_curve_size(curve)
+    if geom.is_empty_curve(curve): return
+    n = geom.get_curve_size(curve)
 
     maxc = max([math.fabs(c) for c in curvature])
     d = 1.0/maxc
@@ -93,7 +92,7 @@ def draw_cross(img, x, y, color):
     cv2.line(img, (x, y-5), (x, y+5), color, 1)
     
 def fill_convex_curve(img, curve, color):
-    if curve_ops.is_empty_curve(curve): return
+    if geom.is_empty_curve(curve): return
     [cx, cy] = geom.get_curve_center(curve)
     cv2.floodFill(img, None, (int(cx), int(cy)), color)
 
@@ -122,7 +121,7 @@ def fill_curve(img, curve, curvature, color):
     # smooth curvature values
     curvature = signal.savgol_filter(curvature, window_length=3, polyorder=1, mode="wrap")
 
-    n= curve_ops.get_curve_size(curve)
+    n= geom.get_curve_size(curve)
 	
     # finding seed point for floodfill
     max_pos = np.argmax(curvature)
@@ -202,7 +201,7 @@ def clear_curve(image, curve, w, h, color):
     if image is None:
         return
         
-    if curve_ops.is_empty_curve(curve): return
+    if geom.is_empty_curve(curve): return
 	
-    for i in range(curve_ops.get_curve_size(curve)):
+    for i in range(geom.get_curve_size(curve)):
         clear_rectangle_at_position(image, curve[0][i], curve[1][i], w, h, color)

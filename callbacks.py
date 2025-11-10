@@ -5,7 +5,6 @@ from enums import CallbackArgs
 from enums import HistoryViewStyle
 import geometry as geom
 import image_operations as img_ops
-import curve_operations as curve_ops
 
 
 # pylint: disable=line-too-long
@@ -88,7 +87,7 @@ def vector_view_callback(curve, curvature, curve_length, iteration, is_circle_sh
                 img_ops.draw_curve_lines(img, curve, fg_color)
                 normal_field = geom.get_normal_field(curve)
                 normal_unit_field = geom.normalize(normal_field)
-                skip_samples = get_sample_skip_count_for_vector(curve_length, curve_ops.get_curve_size(curve))
+                skip_samples = get_sample_skip_count_for_vector(curve_length, geom.get_curve_size(curve))
                 scaling_factor = get_vector_scaling_factor(curve)
                 img_ops.display_shortening_field(img, curve, curvature, normal_unit_field,
                     fg_color, delta_n=skip_samples, magnify=scaling_factor)
