@@ -6,6 +6,13 @@ import geometry as geom
 import list_operations as list_ops
 import collections
 
+
+def get_color_for_curvature(value: float):
+    abs_val = math.fabs(value)
+    val = int(abs_val * 10.0 * 255.0)
+    val = min(255, val)
+    return (val, val, val)
+
 def get_signal_color():
     return 255
 
@@ -46,7 +53,7 @@ def draw_curve_points(img, curve, color=get_signal_color()):
             img[y,x] = color
 
                     
-def draw_curve_lines(img, curve, color=get_signal_color()):
+def draw_curve_lines(img, curve, color=get_signal_color(), thickness=1):
     if geom.is_empty_curve(curve): return
     rows, cols = img.shape[:2]
     n = geom.get_curve_size(curve)
@@ -55,10 +62,23 @@ def draw_curve_lines(img, curve, color=get_signal_color()):
     for i in range(1,n+1):
         x2 = curve[0][i % n]
         y2 = curve[1][i % n]
-        cv2.line(img, (int(x1),int(y1)), (int(x2),int(y2)), color, 1)
+        cv2.line(img, (int(x1),int(y1)), (int(x2),int(y2)), color, thickness)
         x1 = x2
         y1 = y2
 
+def draw_curve_lines_curvature(img, curve, curvature, thickness=1):
+    if geom.is_empty_curve(curve): return
+    rows, cols = img.shape[:2]
+    n = geom.get_curve_size(curve)
+    x1 = curve[0][0]
+    y1 = curve[1][0]
+    for i in range(1,n+1):
+        x2 = curve[0][i % n]
+        y2 = curve[1][i % n]
+        color = get_color_for_curvature(curvature[i % n])
+        cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness)
+        x1 = x2
+        y1 = y2
 
 def display_vector_field(img, curve, vectorField, color=get_signal_color(), delta_n = 5, magnify = 20.0):
     if geom.is_empty_curve(curve): return
