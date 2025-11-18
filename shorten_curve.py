@@ -58,6 +58,11 @@ def parse_command_line():
     parser.add_argument('--height', type=int, required=False, default=0, help='image height to display curves')
     parser.add_argument('--width', type=int, required=False, default=0, help='image width to display curves')
     parser.add_argument('--diameter', type=int, required=False, default=10, help='iterate till diameter of curve is larger')
+    parser.add_argument('--gauss_blur', type=int, required=False, default=0, help='Gauss blurring with given window size')
+    parser.add_argument('--jet_colors', required=False, action='store_true', help='')
+    parser.add_argument('--line_thickness', type=int, required=False, default=1, help='Line thickness (only for contour view style)')
+    parser.add_argument('--history_length', type=int, required=False, default=HistoryViewStyle.MAX_COUNT,
+                        help='Number of curves in history (only for history view style)')
     return parser.parse_args()
 
 def get_extension(file_path):
@@ -461,7 +466,7 @@ def main():
         background_color = color_ops.convert_to_rgb(args.bg_color)
 
         if view_style == ViewStyle.HISTORY:
-            history_colors = get_history_colors(foreground_color, background_color, HistoryViewStyle.MAXCOUNT)
+            history_colors = get_history_colors(foreground_color, background_color, HistoryViewStyle.MAX_COUNT)
         else:
             history_colors = []
 
@@ -481,7 +486,9 @@ def main():
             else cb.history_view_callback))
         flow.setCallBack(callback_fcn,
                          (height, width, args.dest_folder, args.iterations, args.diameter,
-                          args.save_every_n, background_color, curve_colors[i], history_colors))
+                          args.save_every_n, background_color, curve_colors[i], history_colors,
+                          i + 1 == len(curves), args.gauss_blur, args.jet_colors, args.line_thickness,
+                          args.history_length))
         flow.run(curve)
         i += 1
 

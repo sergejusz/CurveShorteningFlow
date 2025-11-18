@@ -73,7 +73,7 @@ def vector_view_callback(curve, curvature, curve_length, iteration, is_circle_sh
     print("iter=", iteration, " curve arc length=", geom.get_curve_length(curve))
 
     if obj is not None:
-        n = obj[CallbackArgs.SAVETOFILECOUNTER]
+        n = obj[CallbackArgs.SAVE_TO_FILE_COUNTER]
         if iteration % n == 0:
             rows = obj[CallbackArgs.ROWS]
             cols = obj[CallbackArgs.COLS]
@@ -81,19 +81,23 @@ def vector_view_callback(curve, curvature, curve_length, iteration, is_circle_sh
                 'image' + (str(iteration)).zfill(5) + '.png')
             image_exists = os.path.exists(file_path)
             img = cv2.imread(file_path, cv2.IMREAD_COLOR) if image_exists \
-                else np.full((rows, cols, 3), obj[CallbackArgs.BACKGROUNDCOLOR], np.uint8)
+                else np.full((rows, cols, 3), obj[CallbackArgs.BACKGROUND_COLOR], np.uint8)
             if not img is None:
-                fg_color = obj[CallbackArgs.FOREGROUNDCOLOR]
-                img_ops.draw_curve_lines(img, curve, fg_color)
+                line_thickness = obj[CallbackArgs.LINE_THICKNESS]
+                fg_color = obj[CallbackArgs.FOREGROUND_COLOR]
+                img_ops.draw_curve_lines(img, curve, fg_color, line_thickness)
                 normal_field = geom.get_normal_field(curve)
                 normal_unit_field = geom.normalize(normal_field)
                 skip_samples = get_sample_skip_count_for_vector(curve_length, geom.get_curve_size(curve))
                 scaling_factor = get_vector_scaling_factor(curve)
                 img_ops.display_shortening_field(img, curve, curvature, normal_unit_field,
                     fg_color, delta_n=skip_samples, magnify=scaling_factor)
+                if obj[CallbackArgs.LAST_CURVE] and obj[CallbackArgs.GAUSS_BLURRING] > 0:
+                    window_size = obj[CallbackArgs.GAUSS_BLURRING]
+                    img = cv2.GaussianBlur(img, (window_size, window_size), 0)
                 cv2.imwrite(file_path, img)
 
-        max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        max_iterations = obj[CallbackArgs.MAX_ITERATIONS]
         minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return ((max_iterations > 0 and iteration == max_iterations) or
@@ -113,21 +117,35 @@ def contour_view_callback(curve, curvature, curve_length, iteration, is_circle_s
     :param obj: object that contains environmental data.
     """
     print("iter=", iteration, " curve arclength=", geom.get_curve_length(curve))
-
     if obj is not None:
-        n = obj[CallbackArgs.SAVETOFILECOUNTER]
+        n = obj[CallbackArgs.SAVE_TO_FILE_COUNTER]
         if iteration % n == 0:
             rows = obj[CallbackArgs.ROWS]
             cols = obj[CallbackArgs.COLS]
             file_path = os.path.join(obj[CallbackArgs.PATH], 'image' + (str(iteration)).zfill(5) + '.png')
             image_exists = os.path.exists(file_path)
+            background_color = (0,0,0) if obj[CallbackArgs.JET_COLORS] else obj[CallbackArgs.BACKGROUND_COLOR]
             img = cv2.imread(file_path, cv2.IMREAD_COLOR) if image_exists \
-                else np.full((rows, cols, 3), obj[CallbackArgs.BACKGROUNDCOLOR], np.uint8)
+                else np.full((rows, cols, 3), background_color, np.uint8)
             if not img is None:
-                img_ops.draw_curve_lines(img, curve, obj[CallbackArgs.FOREGROUNDCOLOR])
+                line_thickness = obj[CallbackArgs.LINE_THICKNESS]
+                if obj[CallbackArgs.JET_COLORS]:
+                    img_ops.draw_curve_lines_curvature(img, curve, curvature, line_thickness)
+                else:
+                    img_ops.draw_curve_lines(img, curve, obj[CallbackArgs.FOREGROUND_COLOR], line_thickness)
+                if obj[CallbackArgs.LAST_CURVE] and obj[CallbackArgs.GAUSS_BLURRING] > 0:
+                    ksize = obj[CallbackArgs.GAUSS_BLURRING]
+                    img = cv2.GaussianBlur(img, (ksize, ksize), 0)
+                if obj[CallbackArgs.LAST_CURVE]:
+                    if obj[CallbackArgs.JET_COLORS]:
+                        img = cv2.applyColorMap(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.COLORMAP_JET)
+                    if obj[CallbackArgs.GAUSS_BLURRING] > 0:
+                        window_size = obj[CallbackArgs.GAUSS_BLURRING]
+                        img = cv2.GaussianBlur(img, (window_size, window_size), 0)
+
                 cv2.imwrite(file_path, img)
 
-        max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        max_iterations = obj[CallbackArgs.MAX_ITERATIONS]
         minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return ((max_iterations > 0 and iteration == max_iterations) or
@@ -152,29 +170,41 @@ def history_view_callback(curve, curvature, curve_length, iteration, is_circle_s
         curves.clear()
 
     if obj is not None:
-        if iteration % HistoryViewStyle.SKIPITERATIONS == 0:
+        if iteration % HistoryViewStyle.SKIP_ITERATIONS == 0:
             curves.append(curve)
-            if len(curves) > HistoryViewStyle.MAXCOUNT:
+            if len(curves) > obj[CallbackArgs.HISTORY_LENGTH]:
                 del curves[0]
 
-        n = obj[CallbackArgs.SAVETOFILECOUNTER]
+        n = obj[CallbackArgs.SAVE_TO_FILE_COUNTER]
         if iteration % n == 0:
             rows = obj[CallbackArgs.ROWS]
             cols = obj[CallbackArgs.COLS]
             file_path = os.path.join(obj[CallbackArgs.PATH], 'image' + (str(iteration)).zfill(5) + '.png')
             image_exists = os.path.exists(file_path)
             img = cv2.imread(file_path, cv2.IMREAD_COLOR) if image_exists \
-                else np.full((rows, cols, 3), obj[CallbackArgs.BACKGROUNDCOLOR], np.uint8)
+                else np.full((rows, cols, 3), obj[CallbackArgs.BACKGROUND_COLOR], np.uint8)
 
             if not img is None:
+                line_thickness = obj[CallbackArgs.LINE_THICKNESS]
                 m = len(curves)
                 i = 0
                 for curve_ in curves:
-                    img_ops.draw_curve_lines(img, curve_, obj[CallbackArgs.HISTORYCOLORS][m - i - 1])
+                    if obj[CallbackArgs.JET_COLORS]:
+                        curvature_ = geom.get_curvature(curve_)
+                        img_ops.draw_curve_lines_curvature(img, curve_, curvature_, line_thickness)
+                    else:
+                        img_ops.draw_curve_lines(img, curve_, obj[CallbackArgs.HISTORY_COLORS][m - i - 1], line_thickness)
                     i += 1
+
+                if obj[CallbackArgs.LAST_CURVE]:
+                    if obj[CallbackArgs.JET_COLORS]:
+                        img = cv2.applyColorMap(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.COLORMAP_JET)
+                if obj[CallbackArgs.LAST_CURVE] and obj[CallbackArgs.GAUSS_BLURRING] > 0:
+                    window_size = obj[CallbackArgs.GAUSS_BLURRING]
+                    img = cv2.GaussianBlur(img, (window_size, window_size), 0)
                 cv2.imwrite(file_path, img)
 
-        max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        max_iterations = obj[CallbackArgs.MAX_ITERATIONS]
         minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return ((max_iterations > 0 and iteration == max_iterations) or
@@ -196,7 +226,7 @@ def solid_view_callback(curve, curvature, curve_length, iteration, is_circle_sha
     print("iter=", iteration, " curve arclength=", geom.get_curve_length(curve))
 
     if obj is not None:
-        n = obj[CallbackArgs.SAVETOFILECOUNTER]
+        n = obj[CallbackArgs.SAVE_TO_FILE_COUNTER]
         if iteration % n == 0:
             rows = obj[CallbackArgs.ROWS]
             cols = obj[CallbackArgs.COLS]
@@ -204,16 +234,19 @@ def solid_view_callback(curve, curvature, curve_length, iteration, is_circle_sha
             image_exists = os.path.exists(file_path)
             img = cv2.imread(file_path, cv2.IMREAD_COLOR) if image_exists else np.zeros((rows, cols, 3), np.uint8)
 
-            cv2.floodFill(img, None, (1, 1), obj[CallbackArgs.BACKGROUNDCOLOR])
+            cv2.floodFill(img, None, (1, 1), obj[CallbackArgs.BACKGROUND_COLOR])
             if not img is None:
-                img_ops.draw_curve_lines(img, curve, obj[CallbackArgs.FOREGROUNDCOLOR])
+                img_ops.draw_curve_lines(img, curve, obj[CallbackArgs.FOREGROUND_COLOR])
                 if min(curvature) >= 0:
-                    img_ops.fill_convex_curve(img, curve, obj[CallbackArgs.FOREGROUNDCOLOR])
+                    img_ops.fill_convex_curve(img, curve, obj[CallbackArgs.FOREGROUND_COLOR])
                 else:
-                    img_ops.fill_curve(img, curve, curvature, obj[CallbackArgs.FOREGROUNDCOLOR])
+                    img_ops.fill_curve(img, curve, curvature, obj[CallbackArgs.FOREGROUND_COLOR])
+                if obj[CallbackArgs.LAST_CURVE] and obj[CallbackArgs.GAUSS_BLURRING] > 0:
+                    window_size = obj[CallbackArgs.GAUSS_BLURRING]
+                    img = cv2.GaussianBlur(img, (window_size, window_size), 0)
                 cv2.imwrite(file_path, img)
 
-        max_iterations = obj[CallbackArgs.MAXITERATIONS]
+        max_iterations = obj[CallbackArgs.MAX_ITERATIONS]
         minimal_diameter = obj[CallbackArgs.DIAMETER]
         # terminate flow if number of iterations is exhausted or curve size in horizontal and vertical directions is small
         return ((max_iterations > 0 and iteration == max_iterations) or
