@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from enum import IntEnum
 import argparse
 from functools import cmp_to_key
@@ -11,8 +12,8 @@ import CurveShortener as cs
 import image_operations as img_ops
 import color_operations as color_ops
 import ColorInterpolator as ci
-from enums import HistoryViewStyle
 import callbacks as cb
+import CallbackData as cbd
 
 
 # pylint: disable=line-too-long
@@ -24,6 +25,12 @@ class ViewStyle(IntEnum):
     SOLID = 2
     VECTOR = 3
     HISTORY = 4
+
+class HistoryViewStyle(IntEnum):
+    """ """
+    MAX_COUNT = 20
+    SKIP_ITERATIONS = 100
+
 
 def parse_command_line():
     """
@@ -63,6 +70,7 @@ def parse_command_line():
     parser.add_argument('--line_thickness', type=int, required=False, default=1, help='Line thickness (only for contour view style)')
     parser.add_argument('--history_length', type=int, required=False, default=HistoryViewStyle.MAX_COUNT,
                         help='Number of curves in history (only for history view style)')
+    parser.add_argument('-e', '--elapsed_time', required=False, action='store_true', help='Show elapsed time (for diagnostics)')
     return parser.parse_args()
 
 def get_extension(file_path):
@@ -367,6 +375,8 @@ def main():
     if args is None:
         sys.exit(1)
 
+    time_started = time.time()
+
     curves = []
     if is_figure(args.image_path):
         curve = get_figure_curve(args)
@@ -424,7 +434,7 @@ def main():
             print("ERROR: Number of extracted curves = ", num_extracted, " is less than ", args.number_curves)
             sys.exit(1)
 
-        # sort curves by length in ascending order
+        # sort curves by length in descending order
         curves = sorted(curves, key=cmp_to_key(cmp_curve), reverse = args.ascending)
         for curve in curves:
             print("len=", geom.get_curve_size(curve))
@@ -466,7 +476,7 @@ def main():
         background_color = color_ops.convert_to_rgb(args.bg_color)
 
         if view_style == ViewStyle.HISTORY:
-            history_colors = get_history_colors(foreground_color, background_color, HistoryViewStyle.MAX_COUNT)
+            history_colors = get_history_colors(foreground_color, background_color, args.history_length)
         else:
             history_colors = []
 
@@ -484,14 +494,19 @@ def main():
         callback_fcn = cb.vector_view_callback if view_style == ViewStyle.VECTOR else (
             cb.solid_view_callback if view_style == ViewStyle.SOLID else (cb.contour_view_callback if view_style == ViewStyle.CONTOUR
             else cb.history_view_callback))
-        flow.setCallBack(callback_fcn,
-                         (height, width, args.dest_folder, args.iterations, args.diameter,
+
+        callback_obj = cbd.CallbackData(height, width, args.dest_folder, args.iterations, args.diameter,
                           args.save_every_n, background_color, curve_colors[i], history_colors,
-                          i + 1 == len(curves), args.gauss_blur, args.jet_colors, args.line_thickness,
-                          args.history_length))
+                          i == 0, i + 1 == len(curves), args.gauss_blur, args.jet_colors, args.line_thickness,
+                          args.history_length, HistoryViewStyle.SKIP_ITERATIONS)
+
+        flow.setCallBack(callback_fcn, callback_obj)
         flow.run(curve)
         i += 1
 
+    time_completed = time.time()
+    if(args.elapsed_time):
+        print("Elapsed time:", time_completed - time_started)
 
 if __name__ == "__main__":
     main()
