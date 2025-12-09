@@ -491,15 +491,8 @@ def get_vertical_amplitude(curve: np.ndarray) -> float:
         return 0.0
     return np.max(curve, axis=1)[1] - np.min(curve, axis=1)[1]
 
-def get_curve_amplitude2(curve : np.ndarray) -> [float, float] :
-    """
-    Calculates horizontal and vertical amplitudes of curve.
-    :param curve: plane curve.
-    :return list of amplitudes
-    """
-    return [get_horizontal_amplitude(curve), get_vertical_amplitude(curve)]
 
-def get_curve_amplitude(curve : np.ndarray) -> float :
+def get_curve_amplitudes(curve : np.ndarray) -> float :
     """
     Calculates amplitude (linear size) of curve.
     Calculates longest regression line, approximating curve.
