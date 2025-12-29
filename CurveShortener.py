@@ -19,12 +19,13 @@ class CurveShortener():
         # set True to preserve length of curve
         self.preserve_area = False
         self.is_circle = False
-        self.use_lsq_resample = False
         self.save_additional_info = False
         self.window_length = 5
         self.poly_order = 2
         self.number_of_smooth = 1
         self.max_iterations_without_downsampling = 10
+        self.check_density = 20
+        self.density_threshold = 5 # percents
 
 
     def setMaxIterations(self, iterations):
@@ -61,13 +62,6 @@ class CurveShortener():
         """
         self.preserve_area = True
         
-    def set_use_lsq_resample(self):
-        """
-        Sets usage of LSQ for resampling.
-        Otherwise interpolation is used.
-        """
-        self.use_lsq_resample = True
-        
     def set_save_additional_info(self):
         """
         Applies curve shortening flow operation to given curve,
@@ -89,58 +83,25 @@ class CurveShortener():
         #print("dL=", dl, " minL=", min_length, " maxL=", max_length)
         return dl > 5.0
 
-
-    def get_density_for_singular_part(self, parts, curve_length_list):
-        """
-        Calculates number of points per length for given parts of curve (singular part of curve).
-        :param parts: list of pairs of positions in curve that contain singular part of curve.
-        :param curve_length_list: list of lengths of curve segments.
-        :return curve points density
-        """
-        length = 0.0
-        count = 0
-        for part in parts:
-            length += geom.get_part_curve_length_from_list(curve_length_list, part[0], part[1])
-            count += part[1] - part[0] + 1
-        return count/length
-
-
-    def get_density_for_regular_part(self, parts, curve, curve_length_list):
-        """
-        Calculates number of points per length for given parts of curve (regular part of curve).
-        :param parts: list of pairs of positions in curve that contain singular part of curve.
-        :param curve: curve data.
-        :param curve_length_list: list of lengths of curve segments
-        :return curve points density
-        """
-        length = 0.0
-        count = 0
-        for part in parts:
-            length += geom.get_part_curve_length_from_list(curve_length_list, part[0], part[1])
-            count += part[1] - part[0] + 1
-        return (geom.get_curve_size(curve) - count)/(geom.get_curve_length_from_list(curve_length_list) - length)
-
-
     def run(self, curve):
         """
         Applies curve shortening flow to given curve.
         :param curve: curve data.
         """
+        time_step = 1.0
         curvature_integral = geom.get_curvature_over_curve(curve, geom.get_curvature(curve))
-        #print(curvature_integral)
         if curvature_integral < 0:
             curve = np.flip(curve, axis=1)
 
         curve = geom.shift_curve(curve, geom.get_curve_size(curve) // 2)
         
-        curve = geom.resample_by_lsq(curve)
+        curve = geom.resample_by_interpolation(curve)
         curvature_ratio_history = []
         arclen_history = []
-        accumulated_curves = []
         # curve at previous step
         prev_curve = geom.get_empty_curve()
-        # initial number of points per curve length
-        num_points_per_length = geom.get_curve_size(curve)/geom.get_curve_length(curve)
+        # number of points per curve length at the beginning
+        density_initial = geom.get_curve_size(curve)/geom.get_curve_length(curve)
         # variable to count number of iterations after downsampling
         counter = 0
         iteration = 0
@@ -148,52 +109,53 @@ class CurveShortener():
         while not finished:
             if self.has_big_deviation_step(curve):
                 # curve points are distributed not evenly - should be resampled
-                if self.use_lsq_resample:
-                    curve = geom.resample_by_lsq(curve)
-                else:
-                    curve = geom.resample_by_interpolation(curve)
+                curve = geom.resample_by_interpolation(curve)
             
             curve = geom.smoothen_with_compensation_curve(curve, w=5, po=2, iterations=1)
+            # check number of points per arc length
+            if iteration % self.check_density == 0:
+                curve_length = geom.get_curve_length(curve)
+                density_now = geom.get_curve_size(curve) / curve_length
+                # calculate relative density deviation
+                density_deviation = ((density_now - density_initial) / density_now) * 100.0
+                if density_deviation >= self.density_threshold:
+                    old_num = geom.get_curve_size(curve)
+                    new_num = int(density_initial * curve_length)
+                    curve = geom.resample_by_interpolation(curve, n=new_num)
+                    print(f"Resampled from {old_num} to {new_num}")
 
             curve_length_array = geom.get_curve_length_list(curve)
             curve_length = geom.get_curve_length_from_list(curve_length_array)
             curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
-            # if number of iterations without downsampling is big enough
-            if counter == self.max_iterations_without_downsampling:
-                new_num = int(num_points_per_length * curve_length)
-                if geom.get_curve_size(curve) + 1 < new_num:
-                    curve = geom.resample_by_interpolation(curve, n=new_num)
-                    curve_length_array = geom.get_curve_length_list(curve)
-                    curve_length = geom.get_curve_length_from_list(curve_length_array)
-                    curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
 
-            
+            # if number of iterations without downsampling is big enough
+            if counter == self.max_iterations_without_downsampling and time_step < 1.0:
+                time_step = min(2.0 * time_step, 1.0)
+                if time_step < 1.0:
+                    counter = 0
+                print(f"time_step increased to {time_step}")
+
             if self.save_additional_info:
                 arclen_history.append(curve_length)
                 max_curv = max(curvature)
                 if max_curv != 0.0:
                     curvature_ratio_history.append(min(curvature)/max_curv)
-            
+
+            step_changed = False
             # detect and handle singularities
             if geom.get_curve_size(prev_curve) > 0:
                 singular_groups = singular.detect(curvature)
                 if len(singular_groups) > 0:
+                    print("iter=", iteration, " Singular groups : ", len(singular_groups))
                     if self.save_additional_info:
                         self.save_list(curvature, prefix="singular_curvature_"+str(iteration))
 
-                    density_of_singular_part = self.get_density_for_singular_part(singular_groups, curve_length_array)
-                    
                     curve = prev_curve.copy()
                     curve_length_array = geom.get_curve_length_list(curve)
                     curve_length = geom.get_curve_length_from_list(curve_length_array)
-                    
-                    density_of_regular_part = self.get_density_for_regular_part(singular_groups, curve, curve_length_array)
-                    
-                    new_num = int((density_of_regular_part*geom.get_curve_size(curve))/density_of_singular_part)
-                    # resample for new_num points
-                    curve = geom.resample_by_interpolation(curve, n=new_num)
-                    curve_length_array = geom.get_curve_length_list(curve)
-                    curve_length = geom.get_curve_length_from_list(curve_length_array)
+                    time_step = time_step * 0.5
+                    step_changed = True
+                    print(f"time_step decreased to {time_step}")
                     curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
                     counter = 0
                     
@@ -204,17 +166,10 @@ class CurveShortener():
                 if self.max_iterations is not None:
                     finished = iteration >= self.max_iterations
 
-            prev_curve = curve.copy()
-            #s0 = geom.get_convex_curve_square(curve)
+            if not step_changed:
+                prev_curve = curve.copy()
 
-            curve = self.get_next_curve(curve, curvature, curve_length)
-
-            #s1 = geom.get_convex_curve_square(curve)
-            #print(geom.get_curve_size(curve), " --> ", curve_length)
-            #if s0 > s1:
-            #    print("s0=", "{:.5f}".format(s0), " > s1=", "{:.5f}".format(s1), "s0=", (100.0*math.fabs(s0-s1))/s0 )
-            #else:
-            #    print("s0=", "{:.5f}".format(s0), " <= s1=", "{:.5f}".format(s1), "s0=", (100.0 * math.fabs(s0 - s1)) / s0)
+            curve = self.get_next_curve(curve, curvature, curve_length, time_step)
 
             iteration += 1
             counter += 1
@@ -223,7 +178,7 @@ class CurveShortener():
             self.save_list(arclen_history, prefix="arclen_"+str(iteration))
             self.save_list(curvature_ratio_history, prefix="curvature_ratio_history_"+str(iteration))
 
-    def get_next_curve(self, curve : np.ndarray, curvature : np.ndarray, curve_length : float) -> np.ndarray :
+    def get_next_curve(self, curve : np.ndarray, curvature : np.ndarray, curve_length : float, time_step : float) -> np.ndarray :
         """
         Applies single curve shortening flow operation to given curve,
         :param curve: curve data.
@@ -236,5 +191,5 @@ class CurveShortener():
         if not self.is_circle:
             self.is_circle = geom.is_circle(curve)
 
-        return np.subtract(curve, np.multiply(geom.get_normal_unit_field(curve), np.subtract(curvature, a)))
+        return np.subtract(curve, np.multiply(geom.get_normal_unit_field(curve), np.multiply(np.subtract(curvature, a), time_step)))
 
