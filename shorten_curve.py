@@ -7,6 +7,7 @@ from functools import cmp_to_key
 import cv2
 import numpy as np
 import geometry as geom
+import curves as crv
 import CurveExtractor as ce
 import CurveShortener as cs
 import image_operations as img_ops
@@ -53,15 +54,17 @@ def parse_command_line():
                         choices=['blue', 'green', 'red'], help='sets coloring for visualization of filled curves')
     parser.add_argument('--num_points', type=int, required=False, default=0, help='number of points for curve (used only for figures)')
     parser.add_argument('--save_info', required=False, action='store_true', help='save additional information to files')
-    parser.add_argument('--radius', type=int, required=False, default=0, help='circle radius')
-    parser.add_argument('--radius_x', type=int, required=False, default=0, help='ellipse radius for x axis')
-    parser.add_argument('--radius_y', type=int, required=False, default=0, help='ellipse radius for y axis')
+    parser.add_argument('--radius', type=int, required=False, default=100, help='circle radius')
+    parser.add_argument('--radius_x', type=int, required=False, default=100, help='ellipse radius for x axis')
+    parser.add_argument('--radius_y', type=int, required=False, default=60, help='ellipse radius for y axis')
+    parser.add_argument('--freq_x', type=int, required=False, default=3, help='frequency for x axis')
+    parser.add_argument('--freq_y', type=int, required=False, default=2, help='frequency for y axis')
     parser.add_argument('--ascending', required=False, action='store_true', help='process multiple curves from shortest to longest. Default order is from longest to shortest.')
     parser.add_argument('--curve_no', type=int, required=False, default=0, choices={1,2,3,4,5}, help='process only specified curve with given number. Number starts from 1.')
     parser.add_argument('--bg_color', type=str, required=False, default='000000', help='background color for contour, vector and history views')
     parser.add_argument('--fg_color', type=str, required=False, default='ffffff', help='foreground color for contour, vector and history views')
-    parser.add_argument('--side_x', type=int, required=False, default=0, help='side length for x axis')
-    parser.add_argument('--side_y', type=int, required=False, default=0, help='side length for y axis')
+    parser.add_argument('--side_x', type=int, required=False, default=100, help='side length for x axis')
+    parser.add_argument('--side_y', type=int, required=False, default=60, help='side length for y axis')
     parser.add_argument('--height', type=int, required=False, default=0, help='image height to display curves')
     parser.add_argument('--width', type=int, required=False, default=0, help='image width to display curves')
     parser.add_argument('--diameter', type=int, required=False, default=10, help='iterate till diameter of curve is larger')
@@ -206,6 +209,29 @@ def is_rectangle(name):
     """
     return name.upper() == 'RECTANGLE'
 
+def is_lissajous(name):
+    """
+    Returns True if given string parameter is for Lissajoux curve.
+    :param name: name of figure.
+    :return True or False.
+    """
+    return name.upper() == 'LISSAJOUX'
+
+def is_eight_shape_curve(name):
+    """
+    Returns True if given string parameter is for 8 shape curve made from Lissajous curve.
+    :param name: name of figure.
+    :return True or False.
+    """
+    return name.upper() == 'EIGHT_SHAPE'
+
+def is_touching_eight_shape_curve(name):
+    """
+    Returns True if given string parameter is for 8 shape curve made from two touching circles.
+    :param name: name of figure.
+    :return True or False.
+    """
+    return name.upper() == 'TOUCH_EIGHT_SHAPE'
 
 def is_figure(param):
     """
@@ -215,7 +241,7 @@ def is_figure(param):
     (like circle, ellipse, paperclip, rectangle).
     False otherwise.
     """
-    return is_circle(param) or is_ellipse(param) or is_paperclip(param) or is_rectangle(param)
+    return is_circle(param) or is_ellipse(param) or is_paperclip(param) or is_rectangle(param) or is_lissajous(param) or is_eight_shape_curve(param) or is_touching_eight_shape_curve(param)
 
 
 def cmp_curve(curve1, curve2):
@@ -274,11 +300,11 @@ def get_curve_image_shape(args_width, args_height, curves):
 
     return (width, height, cx, cy)
 
-def get_circle_curve(arg_radius, arg_num_points):
+def get_circle_curve(arg_num_points, arg_radius):
     """
     Returns circle curve with given radius and number of points or empty curve.
-    :param arg_radius:circle radius.
     :param arg_num_points:  number of points for curve specified by user.
+    :param arg_radius:circle radius.
     If not specified then number of points is calculated using radius.
     :return circle curve or empty curve.
     """
@@ -287,14 +313,14 @@ def get_circle_curve(arg_radius, arg_num_points):
         return geom.get_empty_curve()
 
     num_points = arg_radius * 4 if arg_num_points == 0 else arg_num_points
-    return geom.get_circle(0, 0, arg_radius, num_points)
+    return crv.get_circle(num_points, arg_radius)
 
-def get_ellipse_curve(arg_radius_x, arg_radius_y, arg_num_points):
+def get_ellipse_curve(arg_num_points, arg_radius_x, arg_radius_y):
     """
     Returns ellipse curve with given radiuses and number of points or empty curve.
+    :param arg_num_points:  number of points for curve specified by user.
     :param arg_radius_x: horizontal radius.
     :param arg_radius_y: vertical radius.
-    :param arg_num_points:  number of points for curve specified by user.
     If not specified then number of points is calculated using radiuses.
     :return ellipse curve or empty curve.
     """
@@ -306,13 +332,13 @@ def get_ellipse_curve(arg_radius_x, arg_radius_y, arg_num_points):
         num_points = (arg_radius_x + arg_radius_y) * 2
     else:
         num_points = arg_num_points
-    return geom.get_ellipse(0, 0, arg_radius_x, arg_radius_y, num_points)
+    return crv.get_ellipse(num_points, arg_radius_x, arg_radius_y)
 
-def get_paperclip_curve(arg_radius, arg_num_points):
+def get_paperclip_curve(arg_num_points, arg_radius):
     """
     Returns paperclip curve with given radius and number of points or empty curve.
-    :param arg_radius: radius.
     :param arg_num_points:  number of points for curve specified by user.
+    :param arg_radius: radius.
     If not specified then number of points is calculated using radius.
     :return paperclip curve or empty curve.
     """
@@ -321,15 +347,15 @@ def get_paperclip_curve(arg_radius, arg_num_points):
         return geom.get_empty_curve()
 
     num_points = arg_radius * 8 if arg_num_points == 0 else arg_num_points
-    return geom.get_paperclip(0, 0, arg_radius, num_points)
+    return crv.get_paperclip(num_points, arg_radius)
 
 
-def get_rectangle_curve(arg_side_x, arg_side_y, arg_num_points):
+def get_rectangle_curve(arg_num_points, arg_side_x, arg_side_y):
     """
     Returns rectangle curve with given sides and number of points or empty curve.
+    :param arg_num_points:  number of points for curve specified by user.
     :param arg_side_x: horizontal side.
     :param arg_side_y: vertical side.
-    :param arg_num_points:  number of points for curve specified by user.
     If not specified then number of points is calculated using radius.
     :return rectangular curve or empty curve.
     """
@@ -338,7 +364,28 @@ def get_rectangle_curve(arg_side_x, arg_side_y, arg_num_points):
         return geom.get_empty_curve()
 
     num_points = (arg_side_x + arg_side_y) * 2 if arg_num_points == 0 else arg_num_points
-    return geom.get_rectangle(0, 0, arg_side_x, arg_side_y, num_points)
+    return crv.get_rectangle(num_points, arg_side_x, arg_side_y)
+
+def get_lissajous_curve(arg_num_points, arg_ampl_x, arg_ampl_y, arg_freq_x, arg_freq_y):
+    """
+    Returns rectangle curve with given sides and number of points or empty curve.
+    :param arg_num_points:  number of points for curve specified by user.
+    :param arg_ampl_x: horizontal amplitude.
+    :param arg_ampl_y: vertical amplitude.
+    :param arg_side_y: vertical side.
+    If not specified then number of points is calculated using radius.
+    :return rectangular curve or empty curve.
+    """
+    if arg_ampl_x == 0 or arg_ampl_y == 0:
+        print("ERROR: zero amplitude for lissajous curve")
+        return geom.get_empty_curve()
+
+    if arg_freq_x == 0 or arg_freq_y == 0:
+        print("ERROR: zero frequency for lissajous curve")
+        return geom.get_empty_curve()
+
+    return crv.get_lissajous(arg_num_points, arg_ampl_x, arg_ampl_y, arg_freq_x, arg_freq_y)
+
 
 def get_figure_curve(args):
     """
@@ -347,16 +394,25 @@ def get_figure_curve(args):
     :return curve for specified figure (circle, ellipse, paperclip, rectangle).
     """
     if is_circle(args.image_path):
-        return get_circle_curve(args.radius, args.num_points)
+        return get_circle_curve(args.num_points, args.radius)
 
     if is_ellipse(args.image_path):
-        return  get_ellipse_curve(args.radius_x, args.radius_y, args.num_points)
+        return  get_ellipse_curve(args.num_points, args.radius_x, args.radius_y)
 
     if is_paperclip(args.image_path):
-        return get_paperclip_curve(args.radius, args.num_points)
+        return get_paperclip_curve(args.num_points, args.radius)
 
     if is_rectangle(args.image_path):
-        return get_rectangle_curve(args.side_x, args.side_y, args.num_points)
+        return get_rectangle_curve(args.num_points, args.side_x, args.side_y)
+
+    if is_lissajous(args.image_path):
+        return get_lissajous_curve(args.num_points, args.radius_x, args.radius_y, args.freq_x, args.freq_y)
+
+    if is_eight_shape_curve(args.image_path):
+        return crv.get_figure_8(args.num_points, args.radius)
+
+    if is_touching_eight_shape_curve(args.image_path):
+        return crv.get_touching_8(args.num_points, args.radius)
 
     print("Invalid figure specified '", args.image_path, "'")
     return geom.get_empty_curve()
@@ -380,8 +436,11 @@ def main():
     curves = []
     if is_figure(args.image_path):
         curve = get_figure_curve(args)
-        if len(curve) == 0:
+        if geom.is_empty_curve(curve):
+            print("ERROR: Curve '", args.image_path, "' is empty!")
             sys.exit(1)
+        Rc = geom.get_rotation_number(curve)
+        print("Rc=", Rc)
         curves.append(curve)
     else:
         # image_path is for image file

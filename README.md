@@ -48,3 +48,11 @@ py shorten\_curve.py paperclip c:\\Work\\images\\output -i 10 -p -s1 -v vector -
 
 py shorten\_curve.py rectangle c:\\Work\\images\\output -i 100 -p -s1 -v vector --side\_x 100 --side\_y 60
 
+
+
+py shorten\_curve.py EIGHT\_SHAPE c:\\Work\\images\\output -i 4 -s 1 -v vector --num\_points 600 --height 240 --width 300 -p --radius 50 --bg\_color "0000ff" --fg\_color "ffffcc"
+
+py shorten\_curve.py TOUCH\_EIGHT\_SHAPE c:\\Work\\images\\output -i 4 -s 1 -v vector --num\_points 600 --height 240 --width 300 -p --radius 50 --bg\_color "0000ff" --fg\_color "ffffcc"
+
+py shorten\_curve.py LISSAJOUX c:\\Work\\images\\output -i 2 -s 1 -v vector --num\_points 1000 --radius\_x 120 --radius\_y 90 --freq\_x 3  --freq\_y 2 --height 240 --width 300 -p  --bg\_color "0000ff" --fg\_color "ffffcc"
+

@@ -26,6 +26,7 @@ class CurveShortener():
         self.max_iterations_without_downsampling = 10
         self.check_density = 20
         self.density_threshold = 5 # percents
+        self.minimal_step = 0.005
 
 
     def setMaxIterations(self, iterations):
@@ -159,6 +160,11 @@ class CurveShortener():
                     curvature = geom.get_curvature(curve, w=self.window_length, po=self.poly_order)
                     counter = 0
                     
+            if time_step < self.minimal_step:
+                print(f"time_step too small {time_step}")
+                finished = True
+                continue
+
             # user supplied callback function is called if set
             if self.callBack is not None:
                 finished = self.callBack(curve, curvature, curve_length, iteration, self.is_circle, self.callBackObj)
